@@ -1,0 +1,20 @@
+ [link](https://skillbuilder.aws/renderer/?module_id=D18S53TDBA%3A001.000.000&product_id=8D79F3AVR7%3A002.000.000&registration_id=0b525a24-1f26-5394-b6ec-2324f3644b7b&referrer=https%3A%2F%2Fskillbuilder.aws%2Flearn%2F94T2BEN85A%2Faws-cloud-practitioner-essentials%2F8D79F3AVR7&navigation=digital)**Recap and next steps**
+
+This module gave you a practical understanding of AWS compute services, so you can choose the right tools for your applications. You learned when to use fully managed options like Lambda or Fargate, and when full control with Amazon EC2 made sense. You explored how containers solve deployment consistency issues and how AWS services, like Amazon ECS and Amazon EKS, simplify managing and scaling containerized applications. You also discovered services like Elastic Beanstalk, AWS Batch, Lightsail, and Outposts, and how each supported specific use cases, from basic web hosting to large-scale batch processing or hybrid cloud environments.
+
+## Resources
+
+To learn more about the material covered in this module, choose the resource links contained in the following table.
+
+|Resource link|Description|
+|---|---|
+|[Containers on AWS(opens in a new tab)](https://aws.amazon.com/containers/services/)|The AWS Containers Services page provides an overview of the AWS container offerings, including services for container image storage, orchestration, and compute. These offerings are designed to streamline the deployment and management of containerized applications.|
+|[Amazon Elastic Container Registry(opens in a new tab)](https://aws.amazon.com/ecr/)|The Amazon ECR is a fully managed service for storing, managing, and deploying container images securely at scale.|
+|[Amazon Elastic Container Service(opens in a new tab)](https://aws.amazon.com/ecs/)|Amazon ECS is a fully managed service that streamlines the deployment, management, and scaling of containerized applications on AWS.|
+|[Amazon Elastic Kubernetes Service(opens in a new tab)](https://aws.amazon.com/eks/)|Amazon EKS is a fully managed Kubernetes service that streamlines running Kubernetes clusters on AWS and on premises. It automates infrastructure management and integrates with AWS networking, security, and storage services.|
+|[AWS Fargate(opens in a new tab)](https://aws.amazon.com/fargate/)|Fargate is a serverless compute engine for running containers without managing servers. It is integrated with Amazon ECS and Amazon EKS.|
+|[AWS Elastic Beanstalk(opens in a new tab)](https://aws.amazon.com/elasticbeanstalk/?gclid=EAIaIQobChMIpb-UsKDfjAMVfWJHAR2d6xQ1EAAYASAAEgLN5PD_BwE&trk=b1c3dd7d-1b94-4b82-99e3-c1505e3a55fb&sc_channel=ps&ef_id=EAIaIQobChMIpb-UsKDfjAMVfWJHAR2d6xQ1EAAYASAAEgLN5PD_BwE:G:s&s_kwcid=AL!4422!3!651737511569!e!!g!!elastic%20bean%20stalk!19845796021!146736269029)|Elastic Beanstalk is a fully managed service for deploying and scaling web applications without managing infrastructure.|
+|[AWS Batch(opens in a new tab)](https://aws.amazon.com/batch/)|AWS Batch is a fully managed service for efficiently running large-scale batch computing jobs on AWS.|
+|[What is Amazon Lightsail?(opens in a new tab)](https://docs.aws.amazon.com/lightsail/latest/userguide/what-is-amazon-lightsail.html)|Lightsail is a simplified cloud platform offering VPS, containers, and databases with predictable pricing.|
+|[What is AWS Outposts?(opens in a new tab)](https://docs.aws.amazon.com/outposts/latest/server-userguide/what-is-outposts.html)|AWS Outposts extends AWS infrastructure and services to on-premises locations for low-latency, local data processing.|
+|[Choosing a modern application strategy(opens in a new tab)](https://docs.aws.amazon.com/decision-guides/latest/modern-apps-strategy-on-aws-how-to-choose/modern-apps-strategy-on-aws-how-to-choose.html)|The AWS Decision Guide for Modern Application Strategy helps organizations determine the most suitable development approach—serverless or Kubernetes—based on their operational model, team structure, and workload requirements.|
