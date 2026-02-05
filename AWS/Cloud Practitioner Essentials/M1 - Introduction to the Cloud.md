@@ -1,8 +1,8 @@
-[Link](https://skillbuilder.aws/renderer/?module_id=ZWYR2AX7VG%3A001.000.000&product_id=8D79F3AVR7%3A002.000.000&registration_id=0b525a24-1f26-5394-b6ec-2324f3644b7b&referrer=https%3A%2F%2Fskillbuilder.aws%2Flearn%2F94T2BEN85A%2Faws-cloud-practitioner-essentials%2F8D79F3AVR7&navigation=digital) **Recap and next steps**
+### **Recap and next steps**
 
 In this section of the training, you learned fundamental concepts of cloud computing. You explored the definition and benefits of the cloud, and you were introduced to AWS Global Infrastructure. You also explored the AWS Shared Responsibility Model to clarify the division of responsibilities between AWS and customers.
 
-## Resources
+### Resources
 
 To learn more about the material covered in this module, choose the resource links contained in the following table.
 

@@ -1,4 +1,4 @@
-[link](https://skillbuilder.aws/renderer/?module_id=422P3V2XSR%3A001.000.000&product_id=8D79F3AVR7%3A002.000.000&registration_id=0b525a24-1f26-5394-b6ec-2324f3644b7b&referrer=https%3A%2F%2Fskillbuilder.aws%2Flearn%2F94T2BEN85A%2Faws-cloud-practitioner-essentials%2F8D79F3AVR7&navigation=digital) **Recap and next steps**
+### **Recap and next steps**
 
 In these lessons about compute, you learned how Amazon EC2 and cloud resources help scale applications. You gained knowledge of EC2 instance types, pricing options, and how to choose the best instance types for your unique business needs. You also became familiar with using AWS tools and services like Elastic Load Balancing, Amazon EC2 Auto Scaling, Amazon SQS, and Amazon SNS to manage traffic and communication. 
 

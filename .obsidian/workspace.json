@@ -11,10 +11,14 @@
             "id": "348e14948a77bdb2",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "AWS/Cloud Practitioner Essentials/M6 - Storage.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "M6 - Storage"
             }
           }
         ]
@@ -74,7 +78,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 289.5
   },
   "right": {
     "id": "5f81cf4b0f7ac5c8",
@@ -162,19 +166,21 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "github-sync:Sync with Remote": false
     }
   },
   "active": "348e14948a77bdb2",
   "lastOpenFiles": [
+    "AWS/Cloud Practitioner Essentials/M2 - Compute in the Cloud.md",
+    "AWS/Cloud Practitioner Essentials/M1 - Introduction to the Cloud.md",
+    "AWS/Cloud Practitioner Essentials/M3 - Exploring Compute Services.md",
+    "AWS/Cloud Practitioner Essentials/M4 - Going Global.md",
+    "AWS/Cloud Practitioner Essentials/M5 - Networking.md",
+    "AWS/Cloud Practitioner Essentials/M6 - Storage.md",
     "2026-02-04.md",
     "Untitled.base",
-    "AWS/Cloud Practitioner Essentials/M1 - Introduction to the Cloud.md",
     "Welcome.md",
-    "AWS/Cloud Practitioner Essentials/M5 - Networking.md",
-    "AWS/Cloud Practitioner Essentials/M4 - Going Global.md",
-    "AWS/Cloud Practitioner Essentials/M2 - Compute in the Cloud.md",
-    "AWS/Cloud Practitioner Essentials/M3 - Exploring Compute Services.md",
     "AWS/Cloud Practitioner Essentials",
     "AWS"
   ]
