@@ -1,0 +1,22 @@
+# Obsidian workspace and cache
+.obsidian/
+
+# Optional: if you want to track some Obsidian settings, you can be more specific:
+# .obsidian/workspace.json
+# .obsidian/workspace-mobile.json
+# .obsidian/cache/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Linux
+*~
+.directory
+
+# Backup files
+*.bak
+*.tmp
