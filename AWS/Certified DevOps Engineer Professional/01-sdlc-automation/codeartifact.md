@@ -1,4 +1,4 @@
-# AWS CodeArtifact
+ # AWS CodeArtifact
 
 - Used to store and manage software dependencies and libraries
 - Storing and retrieving these dependencies is called artifact management
@@ -44,7 +44,7 @@
 - Domains are useful for the following:
     - Deduplicate storage: assets only need to be stored once in a domain, even if it is available in many repositories
     - Fast copying: only metadata records are updated when we pull packages from upstream CodeArtifact Repositories into a downstream repository
-    - Easy Sharing across repositories and teams: all the assets and metadata is a domain are encrypted with a single KMS key
+    - Easy Sharing across repositories and teams: all the assets and metadata in a domain are encrypted with a single KMS key
     - Apply Policy across multiple repositories: a domain administrator can apply a policy across the domain as:
         - Restricting which accounts have access to repositories in the domain
         - Who can configure connections to public repositories

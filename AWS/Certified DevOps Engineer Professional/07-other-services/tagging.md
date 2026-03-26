@@ -7,7 +7,7 @@
 - When creating a tagging strategy, we should make sure that it accurately represents organizationally relevant dimensions and adheres to the following best practices:
     - Always use standardized, case-sensitive format for tags
     - Consider tag dimensions that support the ability to manage resource access control, cost tracking, automation and organization
-    - Implement automated tool sto help manage resource tags
+    - Implement automated tools to help manage resource tags
     - Better to use too many tags than to few tags
     - Tags are easy to modify and accommodate changing business requirements
 
