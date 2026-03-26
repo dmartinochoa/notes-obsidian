@@ -22,5 +22,7 @@ desktop.ini
 *.tmp
 
 samconfig.toml
+.claude/
 .aws-sam/
+.sentry-native
  
