@@ -91,10 +91,12 @@
 
 ## Disaster Recovery
 
-| Service | Purpose | Key Points |
-|---------|---------|------------|
-| **AWS Backup** | Centralized backup | Backup plans, vaults, cross-region/account |
-| **DMS** | Database migration | Homogeneous/heterogeneous, CDC replication |
-| **S3 Cross-Region Replication** | Data replication | Versioning required, RTC option |
-| **RDS Read Replicas** | Read scaling | Cross-region, promote to standalone |
-| **Aurora Global Database** | Global DR | 1 primary, 5 secondary regions, <1s replication |
+| Service                         | Purpose            | Key Points                                      |
+| ------------------------------- | ------------------ | ----------------------------------------------- |
+| **AWS Backup**                  | Centralized backup | Backup plans, vaults, cross-region/account      |
+| **DMS**                         | Database migration | Homogeneous/heterogeneous, CDC replication      |
+| **S3 Cross-Region Replication** | Data replication   | Versioning required, RTC option                 |
+| **RDS Read Replicas**           | Read scaling       | Cross-region, promote to standalone             |
+| **Aurora Global Database**      | Global DR          | 1 primary, 5 secondary regions, <1s replication |
+
+## 

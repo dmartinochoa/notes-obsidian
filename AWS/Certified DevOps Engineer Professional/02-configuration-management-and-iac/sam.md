@@ -1,5 +1,72 @@
 # AWS SAM - Serverless Application Model
 
+
+
+**1. Shorthand syntax** The main value prop — resources that would take 100+ lines of CF can be a dozen lines in SAM. Lambda + API Gateway + IAM role in CF is verbose; in SAM it's a single `AWS::Serverless::Function` with an `Events` block.
+
+---
+
+**2. Local development (`sam local`)** — local Lambda invocation, local API Gateway, no deploy needed for basic testing.
+
+---
+
+**3. Built-in best practices by default** When SAM expands your template it automatically creates:
+
+- IAM execution roles with least-privilege policies
+- CloudWatch log groups with retention set
+- Tracing config hooks for X-Ray
+
+Things you'd have to remember to write manually in raw CF.
+
+---
+
+**4. `sam sync` — hot deployment** Pushes code and infrastructure changes to AWS incrementally without a full CF stack update. Significantly faster iteration loop when testing against real AWS services.
+
+---
+
+**5. `sam pipeline`** Generates CI/CD pipeline config for CodePipeline, GitHub Actions, GitLab etc. out of the box — scaffolds the deploy stages, environment separation, and IAM roles needed for a proper pipeline.
+
+---
+
+**6. Policy templates** SAM ships with a library of pre-built IAM policy templates for common patterns:
+
+yaml
+
+```yaml
+Policies:
+  - DynamoDBCrudPolicy:
+      TableName: !Ref MyTable
+  - S3ReadPolicy:
+      BucketName: !Ref MyBucket
+```
+
+Instead of writing raw IAM JSON. Relevant for you in supply chain security — these are audited, least-privilege policies rather than hand-rolled ones that tend to be over-permissive.
+
+---
+
+**7. CF passthrough** Anything SAM can't express you can write as raw CF in the same template — they coexist cleanly. You're never blocked by SAM's abstractions.
+
+---
+
+**8. Open source + AWS native**
+
+- Transforms happen server-side via AWS — no proprietary toolchain lock-in at runtime
+- The transform itself is open source so you can inspect exactly what gets generated
+- Backed by AWS so it tracks new Lambda features quickly
+
+---
+
+**What SAM is NOT good at:**
+
+- Non-serverless infrastructure — for VPCs, RDS, complex networking, raw CF or CDK is better
+- Large multi-service architectures — CDK scales better with programmatic constructs and reuse
+- Teams that prefer a real programming language for IaC — CDK (TypeScript/Python) wins there
+
+---
+
+**SAM vs CDK in one line:** SAM is YAML-first and Lambda-focused. CDK is code-first and covers your whole stack. Many teams use SAM for pure serverless microservices and CDK for everything else.
+
+
 - It is a framework for developing and deploying serverless applications
 - All the configurations for SAM are stored in YAML code
 - SAML cli generates complex CloudFormation templates from SAM YAML code
