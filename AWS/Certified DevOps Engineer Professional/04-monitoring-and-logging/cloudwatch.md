@@ -2,7 +2,7 @@
 
 ## CloudWatch Metrics
 
-- CloudWatch provides metrics for every services in AWS
+- CloudWatch provides metrics for every service in AWS
 - A metric is a variable to monitor (CPUUtilization, NetworkIn, etc.)
 - Metrics belong to **namespaces**
 - A **dimension** is an attribute of a metric (instance id, environment, etc)
@@ -34,12 +34,12 @@
     - CPU Credit Usage and Balance: for T2, T3 burstable instances
     - We don't get built in metrics for RAM and running processes
 - EBS:
-    - Read Bandwidth, Write BandWith
+    - Read Bandwidth, Write Bandwidth
     - Read Throughput, Write Throughput
     - Average Queue Length: how many operations are queued for the EBS volume
     - Time Spent Idle
     - Average Read/Write Size
-    - Burs Balance
+    - Burst Balance
     - We don't get built in metrics for disk space used
 - ASG:
     - Minimum, Maximum Group Size
@@ -126,7 +126,7 @@
 
 - Can be used to search and analyze log data stored in CloudWatch
 - Example: find specific IP inside logs, count occurrences of `ERROR` messages
-- Provides a purpose-build query language:
+- Provides a purpose-built query language:
     - Automatically discovers fields from AWS services and JSON log events
     - We can fetch desired event fields, filter based on conditions, calculate aggregate statistics, sort events, limit number of events
 - We can query multiple Log Groups at a time even if they are in different AWS accounts
@@ -139,7 +139,7 @@
     - Exports are started as task which can take up to 12 hours to finish
     - The API call for starting a task is `CreateExportTask`
 - CloudWatch Logs Subscriptions:
-    - Subscriptions are used to access real-time feed of log events from CloudWatch and have it delivered to other services such as Kineses Streams, Kinesis Firehose or AWS Lambda for custom processing
+    - Subscriptions are used to access real-time feed of log events from CloudWatch and have it delivered to other services such as Kinesis Streams, Kinesis Firehose or AWS Lambda for custom processing
     - **Subscription Filter**: filter which logs events to deliver to the destination
     - With subscription filters we can aggregate logs from different accounts and regions into a single account. To accomplish this we must use a **Cross-Account Subscription**
 
@@ -210,7 +210,7 @@
     - `ALARM`
 - Period:
     - Length of time in seconds to evaluate the metric
-    - High resolution custom metrics: we can choose between 10, 30 second or multiples of 60 secods
+    - High resolution custom metrics: we can choose between 10, 30 second or multiples of 60 seconds
 - Targets:
     - Actions on EC2 instances: Stop, terminate, reboot or recover EC2 instances
     - Trigger auto scaling actions
@@ -227,7 +227,7 @@
 
 - CloudWatch Alarms are based on a single metric
 - With Composite Alarms we can create alarms by monitoring the state of other multiple alarms
-- `ADN` or `OR` conditions are supported
+- `AND` or `OR` conditions are supported
 - Helpful to reduce "alarm noise" by creating complex composite alarms
 
 ### EC2 Instance Recovery
