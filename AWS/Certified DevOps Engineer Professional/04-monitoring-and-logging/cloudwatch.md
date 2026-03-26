@@ -235,6 +235,7 @@
 - Status Check:
     - Instance status: check the EC2 VM
     - System status: check the underlying hardware
+    - Attached EBS status: check the attached EBS volumes
 - Recovery: in case the alarm is breached we can start an instance recovery
 - When a recovery happens we get the same private, public, EIP, metadata, placement group
 
