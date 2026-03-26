@@ -1,4 +1,12 @@
-## CloudWatch's Role First
+
+**Logs** — a centralised log store. Any AWS service or your own application can write logs here. CloudTrail can stream into it, Lambda writes here by default, API Gateway, ECS, RDS all write here. It is the single place logs end up.
+
+**Metrics** — numerical time-series data. AWS services publish metrics automatically (Lambda invocation count, EC2 CPU, SQS queue depth). You can publish your own custom metrics too.
+
+**Alarms** — watch a metric and fire when it crosses a threshold. This is where CloudWatch becomes actionable — an alarm can trigger SNS, an Auto Scaling action, or an EventBridge event.
+
+**Events / EventBridge** — CloudWatch Events was the original name. It was spun out into EventBridge which is now the primary event routing service. When people say CloudWatch Events today they usually mean EventBridge.
+
 
 CloudWatch itself **doesn't collect logs** — it's a **receiver and analyzer**. The sources feed into it:
 

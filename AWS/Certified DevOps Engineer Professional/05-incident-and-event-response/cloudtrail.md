@@ -1,3 +1,4 @@
+![[Pasted image 20260326210409.png]]
 # AWS CloudTrail
 
 - Provides governance, compliance and audit for an AWS account
@@ -66,3 +67,70 @@
     1. Turn on CloudTrail in the account where the destination bucket will belong
     2. Update the bucket policy to grant cross-account permission to CloudTrail
     3. Turn on CloudTrail on the other accounts. Configure CloudTrail to use the same bucket from the destination account
+
+---
+
+CloudTrail doesn't emit events directly — it writes logs. To respond to those logs you need to route them through other services. There are two main patterns:
+
+**Pattern 1 — CloudTrail → EventBridge (real time)**
+
+This is the fastest path. CloudTrail management events are automatically delivered to EventBridge without any configuration on your part. You just write a rule that matches the event you care about:
+
+json
+
+```json
+{
+  "source": ["aws.iam"],
+  "detail-type": ["AWS API Call via CloudTrail"],
+  "detail": {
+    "eventName": ["CreateAccessKey", "AttachRolePolicy", "PutRolePolicy"]
+  }
+}
+```
+
+Then route that rule to a target — Lambda, SNS, SQS, Step Functions. Seconds from the API call to your response.
+
+---
+
+**Pattern 2 — CloudTrail → S3 → Athena (batch analysis)**
+
+CloudTrail writes logs to S3. You can query them with Athena for historical analysis, threat hunting, or compliance reporting:
+
+**The full real-time response stack**
+```
+API call happens
+    ↓
+CloudTrail (records within ~15 seconds)
+    ↓
+EventBridge (matches rule, triggers target)
+    ↓
+Lambda (evaluates severity, decides response)
+    ↓
+Remediation (revoke, revert, isolate) + Alert (Slack, PagerDuty, SNS)
+    ↓
+CloudTrail logs the remediation action too
+````
+
+The whole loop from API call to automated response can be under 30 seconds with EventBridge and Lambda. The main latency is CloudTrail's delivery time to EventBridge which is typically 15-30 seconds for management events.
+
+**Faster: prevent it from happening at all**
+
+An SCP or resource policy deny is instant — zero latency because the action never succeeds. If you can express the bad thing as a policy rule, prevention beats any detection and response time. This is the core argument for shifting left into preventive controls.
+
+---
+
+**Faster: AWS Config proactive rules (pre-deployment)**
+
+Config has a mode called proactive evaluation that checks resources before they are created via ONLY CloudFormation. It blocks the deployment if the resource would be non-compliant — so the bad state never exists rather than being detected after the fact.
+
+---
+
+**Faster for non-CloudTrail signals: GuardDuty**
+
+GuardDuty has its own threat detection pipeline that runs independently of CloudTrail. For certain threat types — credential exfiltration, unusual API call patterns, crypto mining, DNS exfiltration — GuardDuty can fire faster than a CloudTrail → EventBridge chain because it has direct access to the underlying data streams (VPC Flow Logs, DNS logs, CloudTrail) and runs ML models against them continuously. GuardDuty findings also arrive in EventBridge so you can wire the same Lambda response to them.
+
+---
+
+**Faster for network-level threats: VPC Network Firewall / Security Groups**
+
+For network-based attacks, blocking at the network layer is faster than any API-level detection. A Security Group rule or Network Firewall policy blocks traffic inline — no detection lag at all.
