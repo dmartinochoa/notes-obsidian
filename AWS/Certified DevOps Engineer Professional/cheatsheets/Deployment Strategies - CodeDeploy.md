@@ -1,3 +1,31 @@
+
+| Feature                   | EC2/On-Premises                    | Lambda        | ECS                                |
+| ------------------------- | ---------------------------------- | ------------- | ---------------------------------- |
+| Canary deployment config  | ❌ Not via CD, need ALB             | ✅ Yes - Alias | ✅ Yes LB and task sets             |
+| Linear deployment config  | ❌ Not via CD, need ALB             | ✅ Yes - Alias | ✅ Yes LB and task sets             |
+| All-at-once               | ✅ Yes (rolling %)                  | ✅ Yes         | ✅ Yes                              |
+| In-place deployment       | ✅ Yes                              | ❌ No          | ❌ No                               |
+| Blue/Green deployment     | ✅ EC2 only, not On-Premises        | ✅ Yes         | ✅ Yes                              |
+| Rolling                   | ✅ Indirectly via min healthy hosts | ❌ No          | ❌ Not via CodeDeploy, Yes natively |
+| AppSpec revision location | S3 or GitHub                       | S3 only       | S3 only                            |
+
+**In-place** means you update the existing running thing. This only makes sense when there is a persistent server to update. Lambda and ECS don't have persistent servers you manage — AWS manages the underlying compute. So:
+- EC2/On-Premises → **in-place makes sense** — there's a real server to update in place
+- Lambda/ECS → **in-place doesn't exist** — there's no persistent server to update
+
+**Canary/Linear traffic shifting** requires a load balancer or alias that can split traffic between two versions simultaneously. This needs to be a first-class platform feature:
+- **Lambda** → aliases can split traffic between two function versions natively — canary/linear work perfectly
+- **ECS** → ALB/NLB can split traffic between two task sets natively — canary/linear work perfectly
+- **EC2** → no native traffic splitting between two versions of instances — you have to simulate it manually with two deployment groups and ALB traffic shifting
+
+**Blue/Green** requires the ability to launch a parallel environment and shift traffic:
+- **EC2** → can launch replacement instances and shift ALB traffic — supported
+- **Lambda** → versions + aliases handle this natively — supported
+- **ECS** → new task set + ALB — supported
+- **On-Premises** → cannot programmatically provision new servers — **not supported**
+
+---
+
 ## Lambda Deployment Strategies
 
 ### 1. Canary
@@ -89,20 +117,6 @@ CodeDeployDefault.ECSAllAtOnce:
 ```
 
 ---
-
-## Complete Comparison
-
-|Strategy|Lambda|ECS|EC2|
-|---|---|---|---|
-|**Canary**|✅|✅|✅|
-|**Linear**|✅|✅|✅|
-|**All-at-once**|✅|✅|✅|
-|**Rolling**|❌|✅ (native)|✅|
-|**Blue/Green**|✅ (via aliases)|✅|✅|
-|**In-place**|❌|❌|✅|
-
----
-
 ## How Code Deploy Traffic Shifting Works
 
 ### Lambda:
@@ -146,32 +160,6 @@ Blue/Green:
 ```
 
 ---
-
-## Canary vs Linear vs All-at-once
-
-```
-Canary:
-→ Quick initial validation (small % first)
-→ Then full cutover
-→ Two steps only
-→ Best for: want fast deployment with safety check
-
-Linear:
-→ Gradual consistent rollout
-→ Equal increments over time
-→ Many steps
-→ Best for: want to monitor metrics during rollout
-
-All-at-once:
-→ Immediate full deployment
-→ No gradual shift
-→ One step
-→ Best for: dev/test environments, fastest deployment
-→ Highest risk in production
-```
-
----
-
 ## Automatic Rollback
 
 ```
@@ -271,3 +259,10 @@ EC2 unique:
 → No traffic shifting for in-place
 → Blue/Green available but different mechanism
 ```
+
+
+- Contributed to the development of a vulnerability scanner, implementing detectors for source code, infrastructure as code, version control systems, and CI/CD environments. Extended secret detection capabilities to identify exposed credentials in code.
+
+- Manually reviewed packages flagged as potentially malicious across major package registries (npm, PyPI, Maven Central, Packagist), resulting in thousands of malicious packages being removed from their respective repositories. Authored technical write-ups documenting the design and behavior of relevant cases.
+
+- Built internal tooling to automate regression testing of the SAST scanner and systematically benchmark its results against competing tools. Automated backend end-to-end testing.
