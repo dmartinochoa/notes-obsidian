@@ -1,4 +1,3 @@
-# AWS DevOps Professional - Comparison Tables Cheatsheet
 
 ## Secrets Storage: Parameter Store vs Secrets Manager
 

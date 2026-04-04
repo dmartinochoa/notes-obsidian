@@ -18,7 +18,7 @@
 2. Configuration Management and Infrastructure as Code
     - [AWS CloudFormation](02-configuration-management-and-iac/cloudformation.md)
     - [AWS Service Catalog](02-configuration-management-and-iac/service-catalog.md)
-    - [Elastic Beanstalk](02-configuration-management-and-iac/eb.md)
+    - [Elastic Beanstalk](ebs.md)
     - [AWS SAM - Serverless Application Model](02-configuration-management-and-iac/sam.md)
     - [AWS CDK - Cloud Development Kit](02-configuration-management-and-iac/cdk.md)
     - [AWS Step Functions](02-configuration-management-and-iac/step-functions.md)

@@ -1,25 +1,24 @@
-## Complete Hook Comparison
 
-|Hook|Lambda|ECS|EC2 In-Place|EC2 Blue/Green|
-|---|---|---|---|---|
-|`ApplicationStop`|❌|❌|✅ PREV|✅ PREV|
-|`DownloadBundle`|❌|❌|automated ⚙️|automated ⚙️|
-|`BeforeInstall`|❌|✅|✅|✅|
-|`Install`|❌|❌|automated ⚙️|automated ⚙️|
-|`AfterInstall`|❌|✅|✅|✅|
-|`ApplicationStart`|❌|❌|✅|✅|
-|`ValidateService`|❌|❌|✅|✅|
-|`BeforeBlockTraffic`|❌|❌|❌|✅ PREV|
-|`BlockTraffic`|❌|❌|❌|automated ⚙️|
-|`AfterBlockTraffic`|❌|❌|❌|✅ PREV|
-|`AllowTestTraffic`|❌|automated ⚙️|❌|❌|
-|`AfterAllowTestTraffic`|❌|✅|❌|❌|
-|`BeforeAllowTraffic`|✅|✅|❌|✅|
-|`AllowTraffic`|automated ⚙️|automated ⚙️|❌|automated ⚙️|
-|`AfterAllowTraffic`|✅|✅|❌|✅|
-|`BeforeDeregister`|❌|✅|❌|❌|
-|`Deregister`|❌|automated ⚙️|❌|❌|
-|`AfterDeregister`|❌|✅|❌|❌|
+| Hook                    | Lambda       | ECS          | EC2 In-Place | EC2 Blue/Green |     |
+| ----------------------- | ------------ | ------------ | ------------ | -------------- | --- |
+| `ApplicationStop`       | ❌            | ❌            | ✅ PREV       | ✅ PREV         |     |
+| `DownloadBundle`        | ❌            | ❌            | automated ⚙️ | automated ⚙️   |     |
+| `BeforeInstall`         | ❌            | ✅            | ✅            | ✅              |     |
+| `Install`               | ❌            | ❌            | automated ⚙️ | automated ⚙️   |     |
+| `AfterInstall`          | ❌            | ✅            | ✅            | ✅              |     |
+| `ApplicationStart`      | ❌            | ❌            | ✅            | ✅              |     |
+| `ValidateService`       | ❌            | ❌            | ✅            | ✅              |     |
+| `BeforeBlockTraffic`    | ❌            | ❌            | ❌            | ✅ PREV         |     |
+| `BlockTraffic`          | ❌            | ❌            | ❌            | automated ⚙️   |     |
+| `AfterBlockTraffic`     | ❌            | ❌            | ❌            | ✅ PREV         |     |
+| `AllowTestTraffic`      | ❌            | automated ⚙️ | ❌            | ❌              |     |
+| `AfterAllowTestTraffic` | ❌            | ✅            | ❌            | ❌              |     |
+| `BeforeAllowTraffic`    | ✅            | ✅            | ❌            | ✅              |     |
+| `AllowTraffic`          | automated ⚙️ | automated ⚙️ | ❌            | automated ⚙️   |     |
+| `AfterAllowTraffic`     | ✅            | ✅            | ❌            | ✅              |     |
+| `BeforeDeregister`      | ❌            | ✅            | ❌            | ❌              |     |
+| `Deregister`            | ❌            | automated ⚙️ | ❌            | ❌              |     |
+| `AfterDeregister`       | ❌            | ✅            | ❌            | ❌              |     |
 
 **PREV = uses previous deployment's AppSpec**
 

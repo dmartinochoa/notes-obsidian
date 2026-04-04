@@ -1,5 +1,29 @@
-# AWS DevOps Professional - Deployment Strategies Cheatsheet
+| Feature                   | EC2/On-Premises                    | Lambda        | ECS                                |
+| ------------------------- | ---------------------------------- | ------------- | ---------------------------------- |
+| Canary deployment config  | ❌ Not via CD, need ALB             | ✅ Yes - Alias | ✅ Yes LB and task sets             |
+| Linear deployment config  | ❌ Not via CD, need ALB             | ✅ Yes - Alias | ✅ Yes LB and task sets             |
+| All-at-once               | ✅ Yes (rolling %)                  | ✅ Yes         | ✅ Yes                              |
+| In-place deployment       | ✅ Yes                              | ❌ No          | ❌ No                               |
+| Blue/Green deployment     | ✅ EC2 only, not On-Premises        | ✅ Yes         | ✅ Yes                              |
+| Rolling                   | ✅ Indirectly via min healthy hosts | ❌ No          | ❌ Not via CodeDeploy, Yes natively |
+| AppSpec revision location | S3 or GitHub                       | S3 only       | S3 only                            |
 
+---
+**In-place** means you update the existing running thing. This only makes sense when there is a persistent server to update. Lambda and ECS don't have persistent servers you manage — AWS manages the underlying compute. So:
+- EC2/On-Premises → **in-place makes sense** — there's a real server to update in place
+- Lambda/ECS → **in-place doesn't exist** — there's no persistent server to update
+
+**Canary/Linear traffic shifting** requires a load balancer or alias that can split traffic between two versions simultaneously. This needs to be a first-class platform feature:
+- **Lambda** → aliases can split traffic between two function versions natively — canary/linear work perfectly
+- **ECS** → ALB/NLB can split traffic between two task sets natively — canary/linear work perfectly
+- **EC2** → no native traffic splitting between two versions of instances — you have to simulate it manually with two deployment groups and ALB traffic shifting
+
+**Blue/Green** requires the ability to launch a parallel environment and shift traffic:
+- **EC2** → can launch replacement instances and shift ALB traffic — supported
+- **Lambda** → versions + aliases handle this natively — supported
+- **ECS** → new task set + ALB — supported
+- **On-Premises** → cannot programmatically provision new servers — **not supported**
+---
 ## Deployment Strategy Comparison
 
 | Strategy | Downtime | Rollback Speed | Risk | Cost |
@@ -13,7 +37,6 @@
 | **Linear** | No | Fast | Low | Medium |
 
 ---
-
 ## CodeDeploy Deployment Configurations
 
 ### EC2/On-Premises
@@ -40,7 +63,7 @@
 
 ---
 
-## CodeDeploy Lifecycle Hooks
+## CodeDeploy Lifecycle Hooks - [[Lifecycle Hooks]]
 
 ### EC2/On-Premises (In-Place)
 
@@ -77,6 +100,24 @@ ValidateService --> BeforeAllowTraffic --> AllowTraffic --> AfterAllowTraffic
 ```
 BeforeAllowTraffic --> AllowTraffic --> AfterAllowTraffic
 ```
+
+---
+## ECS Deployment Strategies
+
+### Rolling Update (Default)
+```
+minimumHealthyPercent: 50
+maximumPercent: 200
+```
+
+### Blue/Green with CodeDeploy
+- Uses target groups
+- Traffic shifting: AllAtOnce, Canary, Linear
+- Automatic rollback on alarms
+
+### External Controller
+- Third-party deployment controller
+- Full control over deployment process
 
 ---
 
@@ -119,7 +160,49 @@ Stage --> Canary (% traffic) --> Promote/Rollback
 - Promote canary to full deployment or rollback
 
 ---
+## How Code Deploy Traffic Shifting Works
 
+### Lambda:
+
+```
+Uses ALIASES to shift traffic:
+
+Alias → 90% Version 1
+      → 10% Version 2 (canary)
+
+After validation:
+Alias → 100% Version 2
+```
+
+### ECS:
+
+```
+Uses TWO TASK SETS:
+
+Original task set → 90% traffic
+Replacement task set → 10% traffic
+
+After validation:
+Original task set → 0%
+Replacement task set → 100%
+    ↓
+Original task set deregistered
+```
+
+### EC2:
+
+```
+In-place:
+→ Updates instances directly
+→ No traffic shifting
+
+Blue/Green:
+→ Original fleet → blocked
+→ New fleet → receives traffic
+→ Original fleet terminated
+```
+
+---
 ## Lambda Deployment with Aliases
 
 ### Traffic Shifting
@@ -147,25 +230,6 @@ Globals:
         PreTraffic: !Ref PreTrafficLambdaFunction
         PostTraffic: !Ref PostTrafficLambdaFunction
 ```
-
----
-
-## ECS Deployment Strategies
-
-### Rolling Update (Default)
-```
-minimumHealthyPercent: 50
-maximumPercent: 200
-```
-
-### Blue/Green with CodeDeploy
-- Uses target groups
-- Traffic shifting: AllAtOnce, Canary, Linear
-- Automatic rollback on alarms
-
-### External Controller
-- Third-party deployment controller
-- Full control over deployment process
 
 ---
 
@@ -245,3 +309,58 @@ autoRollbackConfiguration:
 6. **Lambda safe deployments** = Use aliases + traffic shifting
 7. **ECS blue/green** = Requires CodeDeploy + 2 target groups
 8. **CloudFormation rollback** = Automatic on stack failure
+
+## Exam Patterns
+
+```
+"Deploy to small subset first then full"
+→ Canary deployment
+→ LambdaCanary10Percent5Minutes
+→ ECSCanary10Percent5Minutes
+
+"Gradually roll out over time"
+→ Linear deployment
+→ LambdaLinear10PercentEvery1Minute
+→ ECSLinear10PercentEvery1Minutes
+
+"Deploy everything immediately"
+→ All-at-once
+→ LambdaAllAtOnce
+→ ECSAllAtOnce
+
+"Automatically rollback if errors increase"
+→ CloudWatch Alarm + CodeDeploy rollback config
+
+"Test with small traffic before production"
+→ Canary
+
+"Monitor metrics during gradual rollout"
+→ Linear
+```
+
+---
+
+## Key Facts
+
+```
+Lambda uses aliases for traffic shifting:
+→ Alias points to two versions simultaneously
+→ Max two versions per alias
+→ Traffic split defined as weights
+
+ECS uses task sets:
+→ Two task sets running simultaneously
+→ ALB routes traffic based on weights
+→ Original deregistered after successful deployment
+
+Both support:
+→ Canary, Linear, All-at-once
+→ CloudWatch Alarm rollback
+→ Hook-based validation
+→ Automatic rollback
+
+EC2 unique:
+→ In-place deployment
+→ No traffic shifting for in-place
+→ Blue/Green available but different mechanism
+```
