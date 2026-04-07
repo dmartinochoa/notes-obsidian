@@ -4,7 +4,7 @@
 | Linear deployment config  | ❌ Not via CD, need ALB             | ✅ Yes - Alias | ✅ Yes LB and task sets             |
 | All-at-once               | ✅ Yes (rolling %)                  | ✅ Yes         | ✅ Yes                              |
 | In-place deployment       | ✅ Yes                              | ❌ No          | ❌ No                               |
-| Blue/Green deployment     | ✅ EC2 only, not On-Premises        | ✅ Yes         | ✅ Yes                              |
+| Blue/Green deployment     | ✅ EC2 only, not On-Premises        | ✅ Yes         | ✅ Yes via lb andd task defenition  |
 | Rolling                   | ✅ Indirectly via min healthy hosts | ❌ No          | ❌ Not via CodeDeploy, Yes natively |
 | AppSpec revision location | S3 or GitHub                       | S3 only       | S3 only                            |
 
