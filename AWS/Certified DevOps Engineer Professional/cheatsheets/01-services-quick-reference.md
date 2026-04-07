@@ -99,4 +99,4 @@
 | **RDS Read Replicas**           | Read scaling       | Cross-region, promote to standalone             |
 | **Aurora Global Database**      | Global DR          | 1 primary, 5 secondary regions, <1s replication |
 
-## 
+## ALL Services

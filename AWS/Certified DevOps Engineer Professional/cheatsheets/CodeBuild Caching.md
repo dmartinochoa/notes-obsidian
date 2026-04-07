@@ -1,4 +1,14 @@
-# CodeBuild Caching — Complete Reference
+
+**CodeBuild caching** allows you to store parts of your build environment at the project level between builds so they don't have to be recreated from scratch every time — reducing build duration.
+
+- Same CodeBuild project triggered by CodePipeline run 1 → cache saved
+- Same CodeBuild project triggered by CodePipeline run 2 → cache reused
+- Different CodeBuild project → separate cache entirely
+
+Without caching every build starts completely fresh — Docker layers get pulled from ECR/Docker Hub, dependencies get downloaded from npm/maven/pip, source gets checked out — even if none of it changed since the last build.
+
+With caching CodeBuild saves those expensive parts after the first build and reuses them on subsequent builds, so only what actually changed needs to be processed. The cache type controls **where** the cache is stored (local host or S3) and the cache mode controls **what** gets cached (Docker layers, source, or custom directories).
+
 
 ---
 

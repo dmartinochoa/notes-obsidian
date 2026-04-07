@@ -1,3 +1,4 @@
+
 | Feature                   | EC2/On-Premises                    | Lambda        | ECS                                |
 | ------------------------- | ---------------------------------- | ------------- | ---------------------------------- |
 | Canary deployment config  | ❌ Not via CD, need ALB             | ✅ Yes - Alias | ✅ Yes LB and task sets             |

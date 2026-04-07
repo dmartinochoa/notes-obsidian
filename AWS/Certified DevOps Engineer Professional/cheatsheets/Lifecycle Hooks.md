@@ -62,6 +62,27 @@ Deregister (automated ⚙️)
 AfterDeregister (hook ✅)
 ```
 
+
+### EC2 Lifecycle event hook availability
+
+
+
+|Lifecycle event name|Auto Scaling launch deployment¹|Auto Scaling termination deployment¹|In-place deployment²|Blue/green deployment: Original instances|Blue/green deployment: Replacement instances|Blue/green deployment rollback: Original instances|Blue/green deployment rollback: Replacement instances|
+|---|---|---|---|---|---|---|---|
+|**ApplicationStop**|✓|✓|✓||✓|||
+|**DownloadBundle**³|✓||✓||✓|||
+|**BeforeInstall**|✓||✓||✓|||
+|**Install**³|✓||✓||✓|||
+|**AfterInstall**|✓||✓||✓|||
+|**ApplicationStart**|✓||✓||✓|||
+|**ValidateService**|✓||✓||✓|||
+|**BeforeBlockTraffic**||✓|✓|✓|||✓|
+|**BlockTraffic**³||✓|✓|✓|||✓|
+|**AfterBlockTraffic**||✓|✓|✓|||✓|
+|**BeforeAllowTraffic**|✓||✓||✓|✓||
+|**AllowTraffic**³|✓||✓||✓|✓||
+|**AfterAllowTraffic**|✓||✓||✓|✓||
+|¹ For information about Amazon EC2 Auto Scaling deployments, see [How Amazon EC2 Auto Scaling works with CodeDeploy](https://docs.aws.amazon.com/codedeploy/latest/userguide/integrations-aws-auto-scaling.html#integrations-aws-auto-scaling-behaviors).<br><br>² Also applies to the rollback of an in-place deployment.<br><br>³ Reserved for CodeDeploy operations. Cannot be used to run scripts.|   |   |   |   |   |   |   |**
 ### EC2 In-Place:
 
 ```
@@ -115,7 +136,6 @@ AfterAllowTraffic (hook ✅)
 ```
 
 ---
-
 ## Previous AppSpec Hooks
 
 ```
@@ -136,7 +156,6 @@ Fix when previous scripts fail:
 ```
 
 ---
-
 ## Key Distinctions
 
 ```
