@@ -87,6 +87,24 @@
     - **Annotations**: key-value pairs added to index traces. These are very important if we want our traces to be searchable or we want to filter them
     - **Metadata**: key-value pairs which are not indexed, can not be used for searching and filtering
 
+## Active Instrumentation — You Add the SDK
+
+Your application code must import and use the X-Ray SDK to create segments and subsegments:
+
+- **EC2** — install X-Ray daemon + add SDK to application
+- **ECS** — run X-Ray daemon as sidecar container + add SDK
+- **Elastic Beanstalk** — X-Ray daemon available but SDK still needed in code
+- **On-premises** — install X-Ray daemon manually
+
+## Passive Instrumentation — AWS Handles It
+
+These services integrate with X-Ray without you changing application code:
+
+- **AWS Lambda** — enable active tracing in function configuration. X-Ray automatically traces invocations
+- **API Gateway** — enable X-Ray tracing on the stage. Traces all requests automatically
+- **Amazon SQS** — traces message passing between services automatically
+- **Amazon SNS** — traces message publishing automatically
+- **AWS SDK calls** — when X-Ray SDK is installed, all AWS SDK calls are automatically traced as subsegments
 ## X-Ray Sampling Rules
 
 - They can be modified before changing code
