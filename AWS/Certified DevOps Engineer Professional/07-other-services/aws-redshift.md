@@ -183,13 +183,13 @@ No cluster to manage — Redshift automatically provisions and scales capacity:
 
 ## Exam Traps
 
-|Wrong assumption|Reality|
-|---|---|
-|Use COPY for petabyte historical data|Use Spectrum — COPY stores data twice|
-|Redshift has Read Replicas|NO — no Read Replicas, no Global Database|
-|Redshift cross-region replication|Snapshot copy only — not continuous|
-|INSERT for bulk loading|Always use COPY — INSERT is slow|
-|Redshift Spectrum needs data in Redshift|NO — queries S3 directly|
-|CFN Mappings for dynamic passwords|NO — use Parameters section|
-|Redshift is good for OLTP|NO — designed for OLAP analytical queries|
-|Enhanced VPC Routing optional for security|Enable it to prevent S3 traffic going over internet|
+| Wrong assumption                           | Reality                                             |
+| ------------------------------------------ | --------------------------------------------------- |
+| Use COPY for petabyte historical data      | Use Spectrum — COPY stores data twice               |
+| Redshift has Read Replicas                 | NO — no Read Replicas, no Global Database           |
+| Redshift cross-region replication          | Snapshot copy only — not continuous                 |
+| INSERT for bulk loading                    | Always use COPY — INSERT is slow                    |
+| Redshift Spectrum needs data in Redshift   | NO — queries S3 directly                            |
+| CFN Mappings for dynamic passwords         | NO — use Parameters section                         |
+| Redshift is good for OLTP                  | NO — designed for OLAP analytical queries           |
+| Enhanced VPC Routing optional for security | Enable it to prevent S3 traffic going over internet |

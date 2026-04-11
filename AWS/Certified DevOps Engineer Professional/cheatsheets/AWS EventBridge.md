@@ -172,4 +172,165 @@ Does the source have a NATIVE direct integration with the target?
 | **Event routing + buffering** | EventBridge → SQS → Lambda workers                      |
 | **Audit + reaction**          | EventBridge (log/archive) + SNS (alert ops team)        |
 | **Cross-account pipeline**    | EventBridge (account A) → EventBridge (account B) → SQS |
-| **SaaS trigger → workflow**   | EventBridge (partner event) → Step Functions            |
+| **SaaS trigger → workflow**   | EventBridge (partner event) → Step Functions       
+
+---
+# Relevant Events
+
+## CodeDeploy
+
+| Detail type                                           | When                                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| CodeDeploy Deployment State-change Notification       | Deployment level — CREATED, QUEUED, IN_PROGRESS, SUCCEEDED, FAILED, STOPPED |
+| CodeDeploy Instance State-change Notification         | Per-instance within a deployment                                            |
+| CodeDeploy Deployment Group State-change Notification | Deployment group level                                                      |
+
+---
+
+## CodePipeline
+
+|Detail type|When|
+|---|---|
+|CodePipeline Pipeline Execution State Change|Pipeline level — STARTED, SUCCEEDED, FAILED, CANCELLED|
+|CodePipeline Stage Execution State Change|Stage level — STARTED, SUCCEEDED, FAILED|
+|CodePipeline Action Execution State Change|Action level — STARTED, SUCCEEDED, FAILED|
+
+---
+
+## CodeBuild
+
+|Detail type|When|
+|---|---|
+|CodeBuild Build State Change|Build SUCCEEDED, FAILED, IN_PROGRESS, STOPPED|
+|CodeBuild Build Phase Change|Individual phase transitions|
+
+---
+
+## CodeCommit
+
+|Detail type|When|
+|---|---|
+|CodeCommit Repository State Change|Push, branch/tag created/deleted|
+|CodeCommit Pull Request State Change|PR created, updated, merged, closed|
+|CodeCommit Comment on Pull Request|Comment added|
+
+---
+
+## AWS Health
+
+|Detail type|When|
+|---|---|
+|AWS Health Event|scheduledChange, issue, accountNotification|
+
+**Source:** `aws.health`
+
+Key events:
+
+- `AWS_EC2_INSTANCE_SCHEDULED_MAINTENANCE` — scheduled maintenance
+- `AWS_RISK_CREDENTIALS_EXPOSED` — credentials found on GitHub
+
+---
+
+## EC2 and ASG
+
+|Detail type|When|
+|---|---|
+|EC2 Instance State-change Notification|running, stopped, terminated, pending|
+|EC2 Spot Instance Interruption Warning|2 minute warning before Spot termination|
+|EC2 Auto Scaling Instance Launch|Instance launched by ASG|
+|EC2 Auto Scaling Instance Terminate|Instance terminated by ASG|
+|EC2 Instance Rebalance Recommendation|Spot rebalance signal|
+
+---
+
+## AWS Config
+
+|Detail type|When|
+|---|---|
+|Config Rules Compliance Change|Rule becomes COMPLIANT or NON_COMPLIANT|
+|Config Configuration Item Change|Resource configuration changed|
+|Config Configuration Snapshot Delivery Completed|Snapshot delivered to S3|
+
+---
+
+## CloudTrail
+
+|Detail type|When|
+|---|---|
+|AWS API Call via CloudTrail|Any specific API call|
+
+Used to detect specific actions like `DeleteTable`, `StopLogging`, `CreateUser` etc.
+
+---
+
+## GuardDuty
+
+|Detail type|When|
+|---|---|
+|GuardDuty Finding|Any new or updated finding|
+
+Filter on `severity` and `type` for specific threats.
+
+---
+
+## Security Hub
+
+|Detail type|When|
+|---|---|
+|Security Hub Findings - Imported|New finding imported|
+|Security Hub Findings - Custom Action|Analyst clicks custom action on finding|
+
+---
+
+## ECS
+
+|Detail type|When|
+|---|---|
+|ECS Task State Change|Task RUNNING, STOPPED, PENDING|
+|ECS Container Instance State Change|Instance ACTIVE, DRAINING, INACTIVE|
+|ECS Service Action|Service scaling, steady state|
+
+---
+
+## Trusted Advisor
+
+|Source|Detail type|
+|---|---|
+|`aws.trustedadvisor`|Trusted Advisor Check Item Refresh Status|
+
+Cannot subscribe directly to SNS — EventBridge only.
+
+---
+
+## CodeArtifact
+
+|Source|Detail type|
+|---|---|
+|`aws.codeartifact`|CodeArtifact Package Version State Change|
+
+Fires when package published, modified, or deleted.
+
+---
+
+## RDS
+
+|Detail type|When|
+|---|---|
+|RDS DB Instance Event|Failover, maintenance, backup, config change|
+
+Note: RDS also has native event notifications directly to SNS — EventBridge is the alternative path.
+
+---
+
+## Key Exam Rules
+
+|Rule|Detail|
+|---|---|
+|EventBridge cannot send email|Always needs SNS as intermediary|
+|CloudTrail → EventBridge|Use "AWS API Call via CloudTrail" detail type for specific API alerts|
+|Trusted Advisor → EventBridge|Only path — no direct SNS|
+|Config → EventBridge|For specific rule alerts — direct Config→SNS streams everything|
+|Health events|Source is `aws.health` not `aws.ec2`|
+|CodePipeline state changes|EventBridge only — no direct notification mechanism|
+|S3 events|Direct to Lambda/SNS/SQS — EventBridge optional|
+|DynamoDB Streams|Item-level changes only — not API calls like DeleteTable|
