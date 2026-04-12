@@ -1,5 +1,7 @@
 # AWS Control Tower
 
+
+
 - It is an easy way to set up and govern a secure and compliant multi-account AWS environment based on best practices
 - Benefits:
     - Automate the set up of our environments in a few clicks
