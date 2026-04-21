@@ -26,3 +26,8 @@ samconfig.toml
 .aws-sam/
 .sentry-native
  
+/.idea/modules.xml
+/.idea/notes.iml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/vcs.xml
