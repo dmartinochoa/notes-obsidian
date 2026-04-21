@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Control Tower Quiz | AWS Security Specialty (SCS-C03)</title>
+    <style>
+        :root { --bg-primary: #0a0e17; --bg-secondary: #141b2d; --bg-tertiary: #1a2236; --text-primary: #e2e8f0; --text-secondary: #94a3b8; --accent-primary: #6366f1; --accent-secondary: #818cf8; --success: #22c55e; --error: #ef4444; --warning: #eab308; --info: #3b82f6; --border: #2d3a52; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        header { text-align: center; margin-bottom: 2rem; padding: 2rem; background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%); border-radius: 16px; border: 1px solid var(--border); }
+        .badge { display: inline-block; background: var(--accent-primary); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 1rem; text-transform: uppercase; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: var(--text-secondary); font-size: 1rem; }
+        .stats-bar { display: flex; justify-content: center; gap: 2rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .stat { text-align: center; } .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); } .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
+        .mode-selector { display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; }
+        .mode-btn { padding: 0.75rem 2rem; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 8px; cursor: pointer; font-size: 1rem; transition: all 0.3s ease; }
+        .mode-btn:hover { border-color: var(--accent-primary); background: var(--bg-tertiary); }
+        .progress-container { background: var(--bg-secondary); border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .progress-text { font-size: 0.875rem; color: var(--text-secondary); }
+        .timer { font-size: 1.25rem; font-weight: 600; color: var(--accent-primary); font-family: 'Consolas', monospace; }
+        .timer.warning { color: var(--warning); animation: pulse 1s infinite; } .timer.danger { color: var(--error); animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius: 4px; transition: width 0.3s ease; }
+        .question-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .question-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .question-number { background: var(--bg-tertiary); color: var(--accent-primary); padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; }
+        .question-domain { font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px; }
+        .question-text { font-size: 1.125rem; margin-bottom: 1.5rem; line-height: 1.7; }
+        .options { display: flex; flex-direction: column; gap: 0.75rem; }
+        .option { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-tertiary); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
+        .option:hover:not(.disabled) { border-color: var(--accent-primary); background: rgba(99, 102, 241, 0.1); }
+        .option.selected { border-color: var(--accent-primary); border-width: 3px; background: rgba(99, 102, 241, 0.2); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25), inset 0 0 12px rgba(99, 102, 241, 0.1); }
+        .option.correct { border-color: var(--success); background: rgba(34, 197, 94, 0.15); }
+        .option.incorrect { border-color: var(--error); background: rgba(239, 68, 68, 0.15); }
+        .option.disabled { cursor: default; }
+        .option-marker { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.875rem; flex-shrink: 0; }
+        .option.selected .option-marker { border-color: var(--accent-primary); background: var(--accent-primary); color: white; }
+        .option.correct .option-marker { border-color: var(--success); background: var(--success); color: white; }
+        .option.incorrect .option-marker { border-color: var(--error); background: var(--error); color: white; }
+        .option-text { flex: 1; padding-top: 2px; }
+        .question-text code, .option-text code, .explanation-text code {
+            font-family: "Consolas", "Courier New", monospace;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.1rem 0.35rem;
+        }
+        .md-code {
+            margin: 0.5rem 0 0 0;
+            padding: 0.75rem;
+            background: #0f1628;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .md-code code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            white-space: pre;
+            display: block;
+            color: #c7d2fe;
+        }
+        .question-text ul, .question-text ol,
+        .option-text ul, .option-text ol,
+        .explanation-text ul, .explanation-text ol {
+            margin: 0.5rem 0 0.5rem 1.25rem;
+        }
+        .question-text strong, .option-text strong, .explanation-text strong {
+            color: #f8fafc;
+        }
+        .explanation { margin-top: 1.5rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; border-left: 4px solid var(--info); display: none; }
+        .explanation.show { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .explanation-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--info); }
+        .answer-header { font-weight: 600; color: var(--success); margin-bottom: 0.5rem; }
+        .explanation-text { color: var(--text-secondary); margin-bottom: 1rem; }
+        .doc-link { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--accent-primary); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; background: rgba(99, 102, 241, 0.1); border-radius: 6px; }
+        .doc-link:hover { background: rgba(99, 102, 241, 0.2); }
+        .btn-container { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--accent-primary); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .results-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; text-align: center; border: 1px solid var(--border); display: none; }
+        .results-card.show { display: block; animation: fadeIn 0.5s ease; }
+        .results-score { font-size: 4rem; font-weight: 700; margin: 1rem 0; }
+        .results-score.pass { color: var(--success); } .results-score.fail { color: var(--error); }
+        .results-status { font-size: 1.5rem; margin-bottom: 1rem; }
+        .results-status.pass { color: var(--success); } .results-status.fail { color: var(--error); }
+        .results-details { color: var(--text-secondary); margin-bottom: 2rem; }
+        .results-breakdown { display: flex; justify-content: center; gap: 3rem; margin-bottom: 2rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; }
+        .breakdown-item { text-align: center; } .breakdown-value { font-size: 2rem; font-weight: 700; } .breakdown-value.correct { color: var(--success); } .breakdown-value.incorrect { color: var(--error); } .breakdown-label { font-size: 0.875rem; color: var(--text-secondary); }
+        .review-section { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; border: 1px solid var(--border); display: none; }
+        .review-section.show { display: block; animation: fadeIn 0.5s ease; }
+        .review-header { text-align: center; margin-bottom: 2rem; }
+        .review-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        .review-table th { background: var(--bg-tertiary); color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; padding: 1rem; text-align: left; border-bottom: 2px solid var(--border); }
+        .review-table td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .review-table tbody tr { cursor: pointer; transition: all 0.2s ease; }
+        .review-table tbody tr:hover { background: rgba(99, 102, 241, 0.1); transform: translateX(4px); }
+        .review-table tbody tr.reviewed { background: rgba(99, 102, 241, 0.25); border-left: 6px solid var(--accent-primary); box-shadow: inset 0 0 20px rgba(99, 102, 241, 0.15); }
+        .review-table tbody tr.reviewed:hover { background: rgba(99, 102, 241, 0.3); }
+        .review-table tbody tr.reviewed .review-q-num { color: var(--accent-secondary); font-weight: 800; }
+        .review-table tbody tr.reviewed .review-q-num::before { content: "✓ "; color: var(--accent-primary); font-size: 1rem; }
+        .review-q-num { font-weight: 700; color: var(--accent-primary); white-space: nowrap; }
+        .review-q-text { color: var(--text-primary); line-height: 1.6; }
+        .review-answer { font-weight: 600; }
+        .review-answer.correct { color: var(--success); }
+        .review-answer.incorrect { color: var(--error); }
+        .review-status { text-align: center; font-size: 1.25rem; }
+        .review-hint { text-align: center; color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem; }
+        .btn-group { display: flex; gap: 1rem; justify-content: center; }
+        .hidden { display: none !important; }
+        .shuffle-notice { text-align: center; padding: 0.75rem; background: rgba(99, 102, 241, 0.1); border-radius: 8px; margin-bottom: 1.5rem; color: var(--accent-secondary); font-size: 0.875rem; }
+        @media (max-width: 640px) { .container { padding: 1rem; } h1 { font-size: 1.5rem; } .stats-bar { gap: 1rem; } .mode-selector, .btn-container, .results-breakdown { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="badge">Domain 6: Security Governance (14%)</span>
+            <h1>AWS Control Tower</h1>
+            <p class="subtitle">Comprehensive Quiz for AWS Security Specialty (SCS-C03)</p>
+            <div class="stats-bar">
+                <div class="stat"><div class="stat-value">20</div><div class="stat-label">Questions</div></div>
+                <div class="stat"><div class="stat-value">80%</div><div class="stat-label">Pass Score</div></div>
+                <div class="stat"><div class="stat-value">50:00</div><div class="stat-label">Exam Time</div></div>
+            </div>
+        </header>
+        <div class="mode-selector" id="modeSelector">
+            <button class="mode-btn" onclick="startQuiz('learn')">📚 Learn Mode</button>
+            <button class="mode-btn" onclick="startQuiz('exam')">⏱️ Exam Mode</button>
+        </div>
+        <div id="quizContent" class="hidden">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span class="progress-text">Question <span id="currentQ">1</span> of <span id="totalQ">20</span></span>
+                    <span class="timer" id="timer">50:00</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%"></div></div>
+            </div>
+            <div class="shuffle-notice" id="shuffleNotice">🔀 Questions and options have been randomized</div>
+            <div id="questionsContainer"></div>
+            <div class="btn-container">
+                <button class="btn btn-secondary" id="prevBtn" onclick="navigate(-1)" disabled>← Previous</button>
+                <button class="btn btn-secondary" id="backToReviewBtn" onclick="backToReview()" style="display: none;">← Back to Review</button>
+                <button class="btn btn-secondary" id="shuffleBtn" onclick="shuffleQuiz()">🔀 Shuffle</button>
+                <button class="btn btn-primary" id="nextBtn" onclick="navigate(1)">Next →</button>
+            </div>
+        </div>
+        <div class="results-card" id="resultsCard">
+            <h2>Quiz Complete!</h2>
+            <div class="results-score" id="scorePercent">0%</div>
+            <div class="results-status" id="resultStatus">-</div>
+            <p class="results-details" id="resultDetails"></p>
+            <div class="results-breakdown">
+                <div class="breakdown-item"><div class="breakdown-value correct" id="correctCount">0</div><div class="breakdown-label">Correct</div></div>
+                <div class="breakdown-item"><div class="breakdown-value incorrect" id="incorrectCount">0</div><div class="breakdown-label">Incorrect</div></div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="showReview()">📊 Review Answers</button>
+                <button class="btn btn-secondary" onclick="restartQuiz()">🔄 Restart Quiz</button>
+            </div>
+        </div>
+        <div class="review-section" id="reviewSection">
+            <div class="review-header">
+                <h2>Answer Review</h2>
+                <p class="results-details">Click any question to review the full answer and explanation</p>
+            </div>
+            <p class="review-hint">💡 Tip: Click on any row to see the full question and explanation in Learn mode</p>
+            <table class="review-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%">#</th>
+                        <th style="width: 50%">Question</th>
+                        <th style="width: 15%">Your Answer</th>
+                        <th style="width: 15%">Correct Answer</th>
+                        <th style="width: 10%">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reviewTableBody"></tbody>
+            </table>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="backToResults()">← Back to Results</button>
+                <button class="btn btn-primary" onclick="restartQuiz()">🔄 Restart Quiz</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const questions = [
+            { id: 1, question: "A company wants to automate the creation of new AWS accounts with consistent security baselines and compliance controls. Which approach provides this capability?", options: ["Use AWS Organizations with CloudFormation templates deployed manually to each new account after creation", "Use AWS Control Tower Account Factory with pre-configured blueprints and automatic guardrail application", "Use AWS Service Catalog with a custom account vending machine built on Step Functions and Lambda", "Use AWS Organizations with SCPs attached at the root level and manual Config rule deployment"], correct: 1, explanation: "AWS Control Tower Account Factory provides a configurable account template that automatically provisions new accounts with your defined network configuration, guardrails, and baseline resources. While other approaches can work, Account Factory is purpose-built for this use case.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/account-factory.html" },
+            { id: 2, question: "Control Tower creates shared accounts during landing zone setup. Which combination correctly identifies these accounts?", options: ["Management Account for billing, Security Account for GuardDuty findings, Logging Account for VPC Flow Logs", "Management Account as organization root, Log Archive Account for centralized CloudTrail/Config logs, Audit Account for cross-account security access", "Master Account for IAM administration, Logging Account for application logs, Compliance Account for Config rule management", "Root Account for organization management, Archive Account for S3 Glacier storage, Security Account for AWS Shield deployment"], correct: 1, explanation: "Control Tower creates three shared accounts: Management Account (organization root), Log Archive Account (centralized CloudTrail and Config logs from all accounts), and Audit Account (cross-account access for security and compliance teams).", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/how-control-tower-works.html" },
+            { id: 3, question: "A security engineer wants to block CloudFormation deployments that would create EC2 instances without encrypted EBS volumes. Which Control Tower control type should they enable?", options: ["A detective control that uses AWS Config rules to report non-compliant instances after launch", "A preventive control that uses SCPs to deny ec2:RunInstances when encryption is not specified", "A proactive control that uses CloudFormation hooks to block non-compliant templates before deployment", "An account-level setting that enables EBS encryption by default for all volumes"], correct: 2, explanation: "Proactive controls use CloudFormation hooks to check resource configurations BEFORE deployment and block non-compliant stacks. Note: Proactive controls ONLY work for CloudFormation deployments - they do not affect resources created via console, API, or other IaC tools. For comprehensive protection, combine with EBS encryption by default at the account level.", docLink: "https://docs.aws.amazon.com/controltower/latest/controlreference/proactive-controls.html" },
+            { id: 4, question: "Which statement correctly describes the relationship between preventive and detective guardrails?", options: ["Preventive guardrails use AWS Config rules to block actions in real-time; detective guardrails use SCPs to report violations to Security Hub", "Preventive guardrails use SCPs to block API actions before they occur; detective guardrails use AWS Config rules to identify existing non-compliant resources", "Preventive guardrails are implemented through CloudWatch alarms; detective guardrails trigger Lambda functions for auto-remediation", "Preventive guardrails require AWS Shield Advanced; detective guardrails integrate with Amazon Inspector for vulnerability detection"], correct: 1, explanation: "Preventive guardrails use Service Control Policies (SCPs) to block actions before they occur. Detective guardrails use AWS Config rules to evaluate existing resources and report non-compliance. They serve complementary purposes in defense-in-depth.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/controls.html" },
+            { id: 5, question: "Control Tower guardrails are categorized by guidance level. What distinguishes Mandatory guardrails from Strongly Recommended guardrails?", options: ["Mandatory guardrails are free while Strongly Recommended guardrails require Control Tower Enterprise license", "Mandatory guardrails cannot be disabled and are always enforced; Strongly Recommended guardrails can be enabled/disabled based on organizational needs", "Mandatory guardrails only apply to production OUs; Strongly Recommended guardrails apply to all OUs including sandbox", "Mandatory guardrails are detective only; Strongly Recommended guardrails include both preventive and detective controls"], correct: 1, explanation: "Mandatory guardrails are always enabled and cannot be disabled - they enforce critical governance requirements. Strongly Recommended guardrails represent AWS best practices but can be enabled or disabled based on your organization's needs.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/controls.html" },
+            { id: 6, question: "The Control Tower dashboard shows 'Drift' status for your landing zone. What does this indicate and how should it be addressed?", options: ["Network configuration has changed causing latency between accounts; reconfigure VPC peering connections manually", "Resources managed by Control Tower have been modified outside of Control Tower; use the Repair function in the dashboard", "AWS has released new guardrails that haven't been applied yet; update Control Tower to the latest version", "Account enrollment has failed for some accounts; re-run Account Factory provisioning for affected accounts"], correct: 1, explanation: "Drift occurs when landing zone resources are modified outside of Control Tower (e.g., someone modifies an SCP or deletes a Config rule). The Control Tower dashboard displays drift status and provides a Repair function to restore the expected configuration.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/drift.html" },
+            { id: 7, question: "Which organizational units (OUs) does Control Tower create by default during landing zone setup?", options: ["Production OU for workload accounts and Development OU for non-production testing environments", "Security OU for Log Archive and Audit accounts, and Sandbox OU for experimentation", "Core OU for shared infrastructure and Custom OU for application-specific workloads", "Foundation OU for mandatory services and Workload OU for customer applications"], correct: 1, explanation: "Control Tower creates the Security OU (containing Log Archive and Audit accounts) and Sandbox OU (for experimentation) by default. Additional OUs like Infrastructure and Workloads should be created based on your organizational needs.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/how-control-tower-works.html" },
+            { id: 8, question: "How does Control Tower provide centralized identity management for enrolled accounts?", options: ["It creates IAM users in each account and synchronizes credentials using AWS Secrets Manager cross-account sharing", "It configures IAM Identity Center (formerly AWS SSO) to provide federated single sign-on access to all enrolled accounts", "It deploys a central Active Directory in the Management account and establishes trust relationships with all member accounts", "It uses AWS Resource Access Manager to share IAM roles across accounts with automatic session management"], correct: 1, explanation: "Control Tower configures IAM Identity Center (formerly AWS SSO) to provide single sign-on access to all accounts in the landing zone. This enables centralized identity management with federated access across your multi-account environment.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/sso.html" },
+            { id: 9, question: "When you enable a detective guardrail in Control Tower, what is deployed to member accounts?", options: ["A Lambda function that runs on a schedule to check for compliance violations and sends findings to Security Hub", "An AWS Config rule that continuously evaluates resource configurations and reports non-compliant resources to the Control Tower dashboard", "An EventBridge rule that triggers on API calls and blocks non-compliant actions before they complete", "A CloudWatch alarm that monitors metrics and sends notifications to SNS when thresholds are exceeded"], correct: 1, explanation: "Detective guardrails deploy AWS Config rules to member accounts. These rules continuously evaluate resource configurations against compliance requirements. Violations are reported to the Control Tower dashboard but not automatically blocked.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/controls.html" },
+            { id: 10, question: "What is stored in the Log Archive account and why is it separated from other accounts?", options: ["Application logs from all workload accounts; separated to optimize storage costs using S3 Intelligent-Tiering", "CloudTrail logs and AWS Config snapshots from all accounts; separated to provide immutable, centralized storage for security investigations", "VPC Flow Logs and DNS query logs; separated to enable cross-account network traffic analysis using Amazon Detective", "CloudWatch Logs and X-Ray traces; separated to provide centralized observability without affecting workload account quotas"], correct: 1, explanation: "The Log Archive account provides immutable, centralized storage for CloudTrail logs and AWS Config data from ALL accounts in the organization. Separating it ensures logs cannot be tampered with by workload account administrators.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/how-control-tower-works.html" },
+            { id: 11, question: "A company has 50 existing AWS accounts they want to bring under Control Tower governance. What is the correct approach?", options: ["Delete the existing accounts and use Account Factory to recreate them with the same names and configurations", "Create a new OU, move the accounts into it, then register the OU with Control Tower to apply mandatory guardrails", "Export all resources from existing accounts, set up new accounts via Account Factory, then import the resources", "Contact AWS Support to migrate the accounts; self-service enrollment is not available for existing accounts"], correct: 1, explanation: "You can enroll existing AWS accounts into Control Tower by registering the OU containing those accounts. Control Tower applies mandatory guardrails and enables AWS Config recording. No need to recreate accounts or migrate resources.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/importing-existing.html" },
+            { id: 12, question: "What capabilities does the Audit account provide to security teams?", options: ["Automated vulnerability scanning of all EC2 instances using Amazon Inspector with findings aggregated in a central dashboard", "Cross-account read access (and optional write access) to all member accounts for security investigations and incident response", "Centralized SIEM functionality with log ingestion from all accounts and built-in threat detection rules", "Automated compliance remediation using pre-built Lambda functions that execute when Config rules detect violations"], correct: 1, explanation: "The Audit account provides security and compliance teams with cross-account read access (and optional write access) to all enrolled accounts. This enables centralized security monitoring, incident response, and compliance verification.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/how-control-tower-works.html" },
+            { id: 13, question: "How does Customizations for AWS Control Tower (CfCT) extend Control Tower functionality?", options: ["It provides a graphical interface to customize the Control Tower dashboard appearance and add custom widgets", "It enables deployment of custom CloudFormation templates and resources to accounts automatically when they are created or enrolled", "It allows modification of mandatory guardrails to meet organization-specific compliance requirements", "It adds machine learning-based anomaly detection to identify unusual account behavior patterns"], correct: 1, explanation: "Customizations for AWS Control Tower (CfCT) uses CloudFormation StackSets to deploy custom resources, security baselines, and configurations automatically when new accounts are created or existing accounts are enrolled.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/customize-landing-zone.html" },
+            { id: 14, question: "Control Tower uses which AWS service to deploy detective guardrails (Config rules) across multiple accounts and regions?", options: ["AWS Systems Manager State Manager to push configurations through SSM agents installed in each account", "AWS CloudFormation StackSets to deploy resources consistently across member accounts and regions", "AWS CodePipeline with cross-account deployment stages configured for each enrolled account", "AWS Lambda with cross-account execution roles to create Config rules in each target account"], correct: 1, explanation: "Control Tower uses CloudFormation StackSets to deploy resources like AWS Config rules for detective guardrails across multiple accounts and regions. StackSets enable centralized, consistent management of resources across the organization.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/how-control-tower-works.html" },
+            { id: 15, question: "What distinguishes proactive controls from preventive controls in Control Tower?", options: ["Proactive controls block API calls using SCPs; preventive controls use CloudFormation hooks to validate templates before deployment", "Proactive controls use CloudFormation hooks to validate resource configurations before creation; preventive controls use SCPs to block API calls", "Proactive controls send alerts before violations occur; preventive controls automatically remediate non-compliant resources", "Proactive controls require Security Hub integration; preventive controls work independently of other security services"], correct: 1, explanation: "Proactive controls use CloudFormation hooks to check resource configurations BEFORE deployment - if non-compliant, deployment fails. Preventive controls use SCPs to block API calls but cannot inspect detailed resource configurations.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/proactive-controls.html" },
+            { id: 16, question: "What is the approximate account limit for a Control Tower landing zone?", options: ["Up to 300 accounts per landing zone with no option to increase this limit", "Up to 5,000 accounts per landing zone, with limits on concurrent enrollment operations", "Up to 10,000 accounts per landing zone when using the enterprise tier of Control Tower", "No hard limit; Control Tower scales automatically based on AWS Organizations capacity"], correct: 1, explanation: "Control Tower can govern up to approximately 5,000 accounts per landing zone. There are also limits on concurrent enrollment operations (around 300-1000 accounts at once). Contact AWS for larger deployments.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/limits.html" },
+            { id: 17, question: "The Control Tower dashboard displays several types of information. Which combination is available in the dashboard?", options: ["EC2 instance inventory, S3 bucket sizes, and Lambda function execution metrics across all accounts", "Compliance status of guardrails, drift detection status, and management of OUs and enrolled accounts", "Cost allocation reports, Reserved Instance utilization, and Savings Plans coverage recommendations", "Network topology maps, VPC peering connections, and Transit Gateway attachment status"], correct: 1, explanation: "The Control Tower dashboard provides visibility into guardrail compliance status, landing zone drift status, and management capabilities for OUs, enrolled accounts, and controls. It focuses on governance rather than resources or costs.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/control-tower-dashboard.html" },
+            { id: 18, question: "A security team wants to prevent member accounts from leaving the AWS Organization managed by Control Tower. Which control should they enable?", options: ["Enable CloudTrail organization trail integration to detect leave attempts", "Enable the 'Disallow member account leave organization' SCP control on all OUs", "Configure AWS Config rules to remediate any account that leaves the organization", "Enable mandatory SNS notifications that require approval before leaving"], correct: 1, explanation: "Control Tower provides an elective/strongly recommended SCP control that denies organizations:LeaveOrganization for member accounts. This is NOT a mandatory control - it must be explicitly enabled on OUs where you want to prevent accounts from leaving. Once enabled, any attempt to leave is denied by the SCP.", docLink: "https://docs.aws.amazon.com/controltower/latest/controlreference/elective-controls.html" },
+            { id: 19, question: "AWS recommends a specific OU structure for Control Tower landing zones. Which structure follows AWS best practices?", options: ["Single OU containing all accounts with guardrails applied at the OU level for simplified management", "Separate OUs for Security, Infrastructure, Workloads (with nested Prod/Non-Prod), Sandbox, and Suspended accounts", "OUs organized by business unit with each BU having full autonomy over their guardrail configuration", "OUs based on AWS regions with accounts grouped geographically for data residency compliance"], correct: 1, explanation: "AWS recommends organizing OUs by function: Security (Log Archive, Audit), Infrastructure (shared services), Workloads (with nested Production and Non-Production OUs), Sandbox (experimentation), and Suspended (decommissioned accounts).", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/aws-multi-account-landing-zone.html" },
+            { id: 20, question: "Which statement accurately describes how guardrails apply to the management account?", options: ["All guardrails apply equally to the management account to ensure consistent governance across the organization", "Preventive guardrails (SCPs) do not restrict the management account, but detective guardrails still evaluate its resources", "Only mandatory guardrails apply to the management account; elective guardrails must be explicitly enabled", "The management account is completely exempt from all guardrails and should be used for daily administrative tasks"], correct: 1, explanation: "SCPs (preventive guardrails) do not affect the management account - this is consistent with AWS Organizations behavior. However, detective guardrails (Config rules) can still evaluate resources in the management account. Best practice is to limit direct use of the management account.", docLink: "https://docs.aws.amazon.com/controltower/latest/userguide/controls.html" }
+        ];
+
+        let currentMode = 'learn', currentQuestion = 0, userAnswers = [], answersRevealed = [], shuffledQuestions = [], timerInterval = null, timeRemaining = 0, inReviewMode = false, reviewedQuestions = [];
+        function shuffleArray(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
+        function shuffleQuestionOptions(q) { const idx = shuffleArray([0,1,2,3]); return { ...q, options: idx.map(i => q.options[i]), correct: idx.indexOf(q.correct) }; }
+        function startQuiz(mode) { currentMode = mode; currentQuestion = 0; userAnswers = new Array(questions.length).fill(null); answersRevealed = new Array(questions.length).fill(false); shuffledQuestions = shuffleArray(questions).map(shuffleQuestionOptions); inReviewMode = false; reviewedQuestions = []; document.getElementById('modeSelector').classList.add('hidden'); document.getElementById('quizContent').classList.remove('hidden'); document.getElementById('resultsCard').classList.remove('show'); document.getElementById('totalQ').textContent = shuffledQuestions.length; document.getElementById('backToReviewBtn').style.display = 'none'; if (mode === 'exam') { timeRemaining = shuffledQuestions.length * 150; startTimer(); document.getElementById('shuffleBtn').classList.add('hidden'); } else { document.getElementById('timer').textContent = 'Learn Mode'; document.getElementById('shuffleBtn').classList.remove('hidden'); } renderQuestion(); }
+        function startTimer() { updateTimerDisplay(); timerInterval = setInterval(() => { timeRemaining--; updateTimerDisplay(); if (timeRemaining <= 0) { clearInterval(timerInterval); showResults(); } }, 1000); }
+        function updateTimerDisplay() { const m = Math.floor(timeRemaining / 60), s = timeRemaining % 60, el = document.getElementById('timer'); el.textContent = `${m}:${s.toString().padStart(2, '0')}`; el.classList.remove('warning', 'danger'); if (timeRemaining <= 60) el.classList.add('danger'); else if (timeRemaining <= 300) el.classList.add('warning'); }
+        function renderQuestion() { const q = shuffledQuestions[currentQuestion], letters = ['A','B','C','D'], ans = userAnswers[currentQuestion], revealed = answersRevealed[currentQuestion]; let opts = q.options.map((o, i) => { let c = 'option'; if (currentMode === 'learn' && revealed) { c += ' disabled'; if (i === q.correct) c += ' correct'; else if (i === ans && ans !== q.correct) c += ' incorrect'; } else if (ans === i) c += ' selected'; return `<div class="${c}" onclick="selectOption(${i})"><span class="option-marker">${letters[i]}</span><div class="option-text">${o}</div></div>`; }).join(''); let exp = currentMode === 'learn' ? `<div class="explanation ${revealed ? 'show' : ''}"><div class="explanation-title">📖 Explanation</div><div class="answer-header">Correct Answer: ${letters[q.correct]}</div><div class="explanation-text">${q.explanation}</div><a href="${q.docLink}" target="_blank" class="doc-link">📄 View AWS Documentation →</a></div>` : ''; document.getElementById('questionsContainer').innerHTML = `<div class="question-card"><div class="question-header"><span class="question-number">Question ${currentQuestion + 1}</span><span class="question-domain">Control Tower</span></div><div class="question-text">${q.question}</div><div class="options">${opts}</div>${currentMode === 'learn' && !revealed ? '<button class="btn btn-primary" style="margin-top:1rem;width:100%;" onclick="revealAnswer()">Show Answer</button>' : ''}${exp}</div>`; document.getElementById('currentQ').textContent = currentQuestion + 1; document.getElementById('progressFill').style.width = `${((currentQuestion + 1) / shuffledQuestions.length) * 100}%`; document.getElementById('prevBtn').disabled = currentQuestion === 0; document.getElementById('nextBtn').textContent = currentQuestion === shuffledQuestions.length - 1 ? (currentMode === 'exam' ? 'Submit Quiz' : 'See Results') : 'Next →'; }
+        function selectOption(i) { if (currentMode === 'learn' && answersRevealed[currentQuestion]) return; userAnswers[currentQuestion] = i; renderQuestion(); }
+        function revealAnswer() { if (userAnswers[currentQuestion] === null) userAnswers[currentQuestion] = -1; answersRevealed[currentQuestion] = true; renderQuestion(); }
+        function navigate(d) { if (d === 1 && currentQuestion === shuffledQuestions.length - 1) { showResults(); return; } currentQuestion = Math.max(0, Math.min(currentQuestion + d, shuffledQuestions.length - 1)); renderQuestion(); }
+        function shuffleQuiz() { if (currentMode !== 'learn') return; currentQuestion = 0; userAnswers = new Array(questions.length).fill(null); answersRevealed = new Array(questions.length).fill(false); shuffledQuestions = shuffleArray(questions).map(shuffleQuestionOptions); renderQuestion(); }
+        function showResults() { if (timerInterval) clearInterval(timerInterval); let correct = shuffledQuestions.reduce((c, q, i) => c + (userAnswers[i] === q.correct ? 1 : 0), 0); const total = shuffledQuestions.length, pct = Math.round((correct / total) * 100), pass = pct >= 80; document.getElementById('quizContent').classList.add('hidden'); document.getElementById('resultsCard').classList.add('show'); document.getElementById('reviewSection').classList.remove('show'); document.getElementById('scorePercent').textContent = pct + '%'; document.getElementById('scorePercent').className = 'results-score ' + (pass ? 'pass' : 'fail'); document.getElementById('resultStatus').textContent = pass ? '🎉 PASSED!' : '📚 Keep Studying'; document.getElementById('resultStatus').className = 'results-status ' + (pass ? 'pass' : 'fail'); document.getElementById('resultDetails').textContent = `You answered ${correct} out of ${total} questions correctly.`; document.getElementById('correctCount').textContent = correct; document.getElementById('incorrectCount').textContent = total - correct; }
+        function showReview() { const letters = ['A','B','C','D']; const tbody = document.getElementById('reviewTableBody'); tbody.innerHTML = shuffledQuestions.map((q, i) => { const userAns = userAnswers[i]; const isCorrect = userAns === q.correct; const userLetter = userAns !== null && userAns >= 0 ? letters[userAns] : 'No Answer'; const correctLetter = letters[q.correct]; const statusIcon = isCorrect ? '✓' : '✗'; const statusClass = isCorrect ? 'correct' : 'incorrect'; const qText = q.question.length > 120 ? q.question.substring(0, 120) + '...' : q.question; const reviewedClass = reviewedQuestions.includes(i) ? 'reviewed' : ''; return `<tr class="${reviewedClass}" onclick="reviewQuestion(${i})"><td class="review-q-num">${i + 1}</td><td class="review-q-text">${qText}</td><td class="review-answer ${userAns === q.correct ? 'correct' : 'incorrect'}">${userLetter}</td><td class="review-answer correct">${correctLetter}</td><td class="review-status ${statusClass}">${statusIcon}</td></tr>`; }).join(''); document.getElementById('resultsCard').classList.remove('show'); document.getElementById('reviewSection').classList.add('show'); inReviewMode = true; }
+        function reviewQuestion(qIndex) { if (!reviewedQuestions.includes(qIndex)) { reviewedQuestions.push(qIndex); } currentMode = 'learn'; currentQuestion = qIndex; answersRevealed[qIndex] = true; document.getElementById('reviewSection').classList.remove('show'); document.getElementById('quizContent').classList.remove('hidden'); document.getElementById('timer').textContent = 'Learn Mode'; document.getElementById('shuffleBtn').style.display = 'none'; document.getElementById('backToReviewBtn').style.display = 'inline-block'; if (timerInterval) clearInterval(timerInterval); renderQuestion(); }
+        function backToReview() { document.getElementById('quizContent').classList.add('hidden'); showReview(); }
+        function backToResults() { document.getElementById('reviewSection').classList.remove('show'); document.getElementById('resultsCard').classList.add('show'); inReviewMode = false; }
+        function restartQuiz() { document.getElementById('resultsCard').classList.remove('show'); document.getElementById('reviewSection').classList.remove('show'); document.getElementById('modeSelector').classList.remove('hidden'); document.getElementById('quizContent').classList.add('hidden'); document.getElementById('backToReviewBtn').style.display = 'none'; inReviewMode = false; reviewedQuestions = []; if (timerInterval) clearInterval(timerInterval); }
+    </script>
+</body>
+</html>

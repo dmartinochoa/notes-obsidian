@@ -11,7 +11,7 @@ To learn more about the material covered in this module, choose the resource lin
 |Resource link|Description|
 |---|---|
 |[Amazon Virtual Private Cloud(opens in a new tab)](https://aws.amazon.com/vpc/)|Amazon VPC is a service to provision a logically isolated section of the AWS Cloud where you can launch AWS resources in a virtual network that you define.|
-|[Subnet(opens in a new tab)](https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html)|A subnet is a section of a VPC that can contain resources and is used to organize your resources. They can contain be either public or private.|
+|[Subnet(opens in a new tab)](https://docs.aws.amazon.com/vpc/latest/userguide/configure-subnets.html)|A subnet is a section of a VPC that can contain resources and is used to organize your resources. They can be either public or private.|
 |[Internet gateway(opens in a new tab)](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Internet_Gateway.html)|An internet gateway is a connection between a VPC and the internet. It allows public traffic from the internet to access your VPC.|
 |[Virtual private gateway(opens in a new tab)](https://docs.aws.amazon.com/vpn/latest/s2svpn/how_it_works.html#VPNGateway)|A virtual private gateway is the component that allows protected internet traffic to enter into the VPC. It allows a connection between your VPC and a private network only if it is coming from an approved network.|
 |[AWS Client VPN(opens in a new tab)](https://aws.amazon.com/vpn/client-vpn/)|Amazon Client VPC is a networking service you can use to connect your remote workers and on-premises networks to the cloud. It is a fully managed, elastic VPN service that automatically scales up or down based on user demand.|

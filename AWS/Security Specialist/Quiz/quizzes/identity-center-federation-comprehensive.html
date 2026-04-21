@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IAM Identity Center & Federation Quiz | AWS Security Specialty (SCS-C03)</title>
+    <style>
+        :root { --bg-primary: #0a0e17; --bg-secondary: #141b2d; --bg-tertiary: #1a2236; --text-primary: #e2e8f0; --text-secondary: #94a3b8; --accent-primary: #06b6d4; --accent-secondary: #22d3ee; --success: #22c55e; --error: #ef4444; --warning: #eab308; --info: #3b82f6; --border: #2d3a52; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        header { text-align: center; margin-bottom: 2rem; padding: 2rem; background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%); border-radius: 16px; border: 1px solid var(--border); }
+        .badge { display: inline-block; background: var(--accent-primary); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 1rem; text-transform: uppercase; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: var(--text-secondary); font-size: 1rem; }
+        .stats-bar { display: flex; justify-content: center; gap: 2rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .stat { text-align: center; } .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); } .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
+        .mode-selector { display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; }
+        .mode-btn { padding: 0.75rem 2rem; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 8px; cursor: pointer; font-size: 1rem; transition: all 0.3s ease; }
+        .mode-btn:hover { border-color: var(--accent-primary); background: var(--bg-tertiary); }
+        .progress-container { background: var(--bg-secondary); border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .progress-text { font-size: 0.875rem; color: var(--text-secondary); }
+        .timer { font-size: 1.25rem; font-weight: 600; color: var(--accent-primary); font-family: 'Consolas', monospace; }
+        .timer.warning { color: var(--warning); animation: pulse 1s infinite; } .timer.danger { color: var(--error); animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius: 4px; transition: width 0.3s ease; }
+        .question-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .question-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .question-number { background: var(--bg-tertiary); color: var(--accent-primary); padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; }
+        .question-domain { font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px; }
+        .question-text { font-size: 1.125rem; margin-bottom: 1.5rem; line-height: 1.7; }
+        .options { display: flex; flex-direction: column; gap: 0.75rem; }
+        .option { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-tertiary); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
+        .option:hover:not(.disabled) { border-color: var(--accent-primary); background: rgba(6, 182, 212, 0.1); }
+        .option.selected { border-color: var(--accent-primary); border-width: 3px; background: rgba(6, 182, 212, 0.2); box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.25), inset 0 0 12px rgba(6, 182, 212, 0.1); }
+        .option.correct { border-color: var(--success); background: rgba(34, 197, 94, 0.15); }
+        .option.incorrect { border-color: var(--error); background: rgba(239, 68, 68, 0.15); }
+        .option.disabled { cursor: default; }
+        .option-marker { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.875rem; flex-shrink: 0; }
+        .option.selected .option-marker { border-color: var(--accent-primary); background: var(--accent-primary); color: white; }
+        .option.correct .option-marker { border-color: var(--success); background: var(--success); color: white; }
+        .option.incorrect .option-marker { border-color: var(--error); background: var(--error); color: white; }
+        .option-text { flex: 1; padding-top: 2px; }
+        .explanation { margin-top: 1.5rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; border-left: 4px solid var(--info); display: none; }
+        .explanation.show { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .explanation-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--info); }
+        .answer-header { font-weight: 600; color: var(--success); margin-bottom: 0.5rem; }
+        .explanation-text { color: var(--text-secondary); margin-bottom: 1rem; }
+        .doc-link { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--accent-primary); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; background: rgba(6, 182, 212, 0.1); border-radius: 6px; }
+        .doc-link:hover { background: rgba(6, 182, 212, 0.2); }
+        .btn-container { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(6, 182, 212, 0.4); }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--accent-primary); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .results-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; text-align: center; border: 1px solid var(--border); display: none; }
+        .results-card.show { display: block; animation: fadeIn 0.5s ease; }
+        .results-score { font-size: 4rem; font-weight: 700; margin: 1rem 0; }
+        .results-score.pass { color: var(--success); } .results-score.fail { color: var(--error); }
+        .results-status { font-size: 1.5rem; margin-bottom: 1rem; }
+        .results-status.pass { color: var(--success); } .results-status.fail { color: var(--error); }
+        .results-details { color: var(--text-secondary); margin-bottom: 2rem; }
+        .results-breakdown { display: flex; justify-content: center; gap: 3rem; margin-bottom: 2rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; }
+        .breakdown-item { text-align: center; } .breakdown-value { font-size: 2rem; font-weight: 700; } .breakdown-value.correct { color: var(--success); } .breakdown-value.incorrect { color: var(--error); } .breakdown-label { font-size: 0.875rem; color: var(--text-secondary); }
+        .hidden { display: none !important; }
+        .shuffle-notice { text-align: center; padding: 0.75rem; background: rgba(6, 182, 212, 0.1); border-radius: 8px; margin-bottom: 1.5rem; color: var(--accent-secondary); font-size: 0.875rem; }
+        .btn-group { display: flex; gap: 1rem; justify-content: center; margin-top: 1rem; }
+        .review-section { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; border: 1px solid var(--border); display: none; }
+        .review-section.show { display: block; animation: fadeIn 0.5s ease; }
+        .review-header { text-align: center; margin-bottom: 2rem; }
+        .review-hint { text-align: center; color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem; }
+        .review-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        .review-table th { background: var(--bg-tertiary); color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; padding: 1rem; text-align: left; border-bottom: 2px solid var(--border); }
+        .review-table td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .review-table tbody tr { cursor: pointer; transition: all 0.2s ease; }
+        .review-table tbody tr:hover { background: rgba(6, 182, 212, 0.1); transform: translateX(4px); }
+        .review-table tbody tr.reviewed { background: rgba(6, 182, 212, 0.25); border-left: 6px solid var(--accent-primary); box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.15); }
+        .review-table tbody tr.reviewed:hover { background: rgba(6, 182, 212, 0.3); }
+        .review-table tbody tr.reviewed .review-q-num { color: var(--accent-secondary); font-weight: 800; }
+        .review-table tbody tr.reviewed .review-q-num::before { content: "✓ "; color: var(--accent-primary); font-size: 1rem; }
+        .review-q-num { font-weight: 700; color: var(--accent-primary); white-space: nowrap; }
+        .review-q-text { color: var(--text-primary); line-height: 1.6; }
+        .review-answer { font-weight: 600; }
+        .review-answer.correct { color: var(--success); }
+        .review-answer.incorrect { color: var(--error); }
+        .review-status { text-align: center; font-size: 1.25rem; }
+        @media (max-width: 640px) { .container { padding: 1rem; } h1 { font-size: 1.5rem; } .stats-bar { gap: 1rem; } .mode-selector, .btn-container, .results-breakdown, .btn-group { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="badge">Domain 4: Identity & Access Management (20%)</span>
+            <h1>IAM Identity Center & Federation</h1>
+            <p class="subtitle">Comprehensive Quiz for AWS Security Specialty (SCS-C03)</p>
+            <div class="stats-bar">
+                <div class="stat"><div class="stat-value">20</div><div class="stat-label">Questions</div></div>
+                <div class="stat"><div class="stat-value">80%</div><div class="stat-label">Pass Score</div></div>
+                <div class="stat"><div class="stat-value">50:00</div><div class="stat-label">Exam Time</div></div>
+            </div>
+        </header>
+        <div class="mode-selector" id="modeSelector">
+            <button class="mode-btn" onclick="startQuiz('learn')">📚 Learn Mode</button>
+            <button class="mode-btn" onclick="startQuiz('exam')">⏱️ Exam Mode</button>
+        </div>
+        <div id="quizContent" class="hidden">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span class="progress-text">Question <span id="currentQ">1</span> of <span id="totalQ">20</span></span>
+                    <span class="timer" id="timer">50:00</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%"></div></div>
+            </div>
+            <div class="shuffle-notice" id="shuffleNotice">🔀 Questions and options have been randomized</div>
+            <div id="questionsContainer"></div>
+            <div class="btn-container">
+                <button class="btn btn-secondary" id="backToReviewBtn" onclick="backToReview()" style="display: none;">← Back to Review</button>
+                <button class="btn btn-secondary" id="prevBtn" onclick="navigate(-1)" disabled>← Previous</button>
+                <button class="btn btn-secondary" id="shuffleBtn" onclick="shuffleQuiz()">🔀 Shuffle</button>
+                <button class="btn btn-primary" id="nextBtn" onclick="navigate(1)">Next →</button>
+            </div>
+        </div>
+        <div class="results-card" id="resultsCard">
+            <h2>Quiz Complete!</h2>
+            <div class="results-score" id="scorePercent">0%</div>
+            <div class="results-status" id="resultStatus">-</div>
+            <p class="results-details" id="resultDetails"></p>
+            <div class="results-breakdown">
+                <div class="breakdown-item"><div class="breakdown-value correct" id="correctCount">0</div><div class="breakdown-label">Correct</div></div>
+                <div class="breakdown-item"><div class="breakdown-value incorrect" id="incorrectCount">0</div><div class="breakdown-label">Incorrect</div></div>
+            </div>
+            <div class="btn-group" id="resultsButtons">
+                <button class="btn btn-primary" onclick="showReview()">📊 Review Answers</button>
+                <button class="btn btn-secondary" onclick="restartQuiz()">🔄 Restart Quiz</button>
+            </div>
+        </div>
+        <div class="review-section" id="reviewSection">
+            <div class="review-header">
+                <h2>Answer Review</h2>
+                <p class="results-details">Click any question to review the full answer and explanation</p>
+            </div>
+            <p class="review-hint">💡 Tip: Click on any row to see the full question and explanation in Learn mode</p>
+            <table class="review-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%">#</th>
+                        <th style="width: 50%">Question</th>
+                        <th style="width: 15%">Your Answer</th>
+                        <th style="width: 15%">Correct Answer</th>
+                        <th style="width: 15%">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reviewTableBody"></tbody>
+            </table>
+            <div class="review-status">
+                <p class="results-details">Reviewed: <span id="reviewedCount">0</span> / <span id="totalReviewCount">0</span> questions</p>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="backToResults()">← Back to Results</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const questions = [
+            { id: 1, question: "A company is migrating from AWS SSO to the renamed service. What documentation references should they update?", options: ["Change all references from 'AWS IAM' to 'IAM Identity Center' in their runbooks", "Change all references from 'AWS SSO' to 'IAM Identity Center' in their documentation", "Change all references from 'AWS Directory Service' to 'IAM Identity Center'", "No changes needed - AWS SSO and IAM Identity Center are different services"], correct: 1, explanation: "IAM Identity Center was previously known as AWS Single Sign-On (AWS SSO). It was renamed in 2022 to better reflect its role as the central place to manage workforce identity and access to AWS accounts and applications. The service functionality remains the same.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html" },
+            { id: 2, question: "A company uses Okta as their corporate identity provider and wants to integrate with IAM Identity Center. Which identity sources are supported?", options: ["Only AWS Managed Microsoft AD or self-managed Active Directory through AD Connector", "Identity Center's built-in directory, Active Directory (Managed AD or AD Connector), or external SAML 2.0 IdP like Okta", "Only the built-in Identity Center directory with manual user provisioning", "External OAuth 2.0 providers and on-premises LDAP directories via direct integration"], correct: 1, explanation: "IAM Identity Center supports three identity sources: its built-in Identity Center directory, AWS Managed Microsoft AD or AD Connector (Active Directory), and external identity providers via SAML 2.0 (like Okta, Azure AD, Ping Identity).", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/manage-your-identity-source.html" },
+            { id: 3, question: "An administrator assigns the 'PowerUserAccess' permission set to a user for a specific AWS account. What happens in that account?", options: ["An IAM user is created in the account with the PowerUserAccess managed policy attached", "An IAM role is created in the account with policies defined by the permission set, which the user assumes", "An IAM group is created and the user's Identity Center identity is added as a member", "A resource-based policy is attached to all resources granting the user PowerUserAccess"], correct: 1, explanation: "A Permission Set is a template that defines what policies will be applied. When assigned to a user/group for an account, Identity Center creates an IAM role in that account with those policies. Users assume this role when accessing the account.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/permissionsetsconcept.html" },
+            { id: 4, question: "A security architect is designing SAML 2.0 federation with AWS. Which flow correctly describes the authentication process?", options: ["User requests AWS credentials first, then AWS redirects to IdP for validation, then IdP returns approval to AWS", "User authenticates with the corporate IdP first, IdP generates a SAML assertion, AWS STS validates it and returns temporary credentials", "User provides corporate credentials directly to AWS, which forwards them to the IdP for validation via LDAP", "AWS generates a SAML request, IdP signs it with the user's credentials, and AWS validates the signature"], correct: 1, explanation: "In SAML 2.0 federation, users authenticate with their corporate identity provider (IdP) first. The IdP then generates a SAML assertion containing user attributes. AWS STS validates the assertion against the trusted provider and returns temporary credentials.", docLink: "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html" },
+            { id: 5, question: "A user needs to access multiple AWS accounts and third-party applications using their corporate credentials. Which component provides this capability?", options: ["The AWS Management Console with cross-account role switching configured for each account", "The AWS access portal where users sign in once to see all assigned accounts and applications", "The IAM dashboard with federated access links for each target account", "The AWS Organizations console with direct links to member account consoles"], correct: 1, explanation: "The AWS access portal is a web-based portal where users sign in once and see all their assigned AWS accounts and applications. From here, they can launch the console or get CLI credentials for any account they have access to.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/using-the-portal.html" },
+            { id: 6, question: "A company wants to automatically sync user accounts from Azure AD to IAM Identity Center. Which protocols does Identity Center use for this?", options: ["OAuth 2.0 for authentication and LDAP for user provisioning and synchronization", "SAML 2.0 for authentication and SCIM for automatic user and group provisioning", "OpenID Connect for both authentication and user lifecycle management", "Kerberos for authentication and Microsoft Graph API for directory synchronization"], correct: 1, explanation: "IAM Identity Center uses SAML 2.0 for authentication with external identity providers. It also supports SCIM (System for Cross-domain Identity Management) for automatic provisioning and deprovisioning of users and groups from your IdP.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/provision-automatically.html" },
+            { id: 7, question: "A developer is implementing programmatic access using SAML federation. Which AWS STS API should they call after receiving the SAML assertion?", options: ["sts:AssumeRole with the SAML assertion included in the RoleSessionName parameter", "sts:AssumeRoleWithSAML with the SAML assertion, role ARN, and principal ARN", "sts:GetFederationToken with the SAML assertion as the identity proof", "sts:GetSessionToken with the SAML assertion to elevate the current session"], correct: 1, explanation: "AssumeRoleWithSAML is the STS API used for SAML 2.0 federation. It takes the base64-encoded SAML assertion, role ARN, and SAML provider principal ARN. The role must have a trust policy that allows the SAML provider.", docLink: "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithSAML.html" },
+            { id: 8, question: "A security team wants users to re-authenticate after 4 hours when using Identity Center. What should they configure?", options: ["Set the IAM role maximum session duration to 4 hours in each target account", "Configure the permission set session duration to 4 hours (sessions are configurable from 1-12 hours)", "Set the Identity Center global session timeout to 4 hours in organizational settings", "Configure the IdP SAML assertion lifetime to 4 hours in the identity provider settings"], correct: 1, explanation: "IAM Identity Center session duration is configurable from 1 to 12 hours per permission set. The default is 1 hour. This controls how long users can access accounts before needing to re-authenticate through the access portal.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/howtosessionduration.html" },
+            { id: 9, question: "A company wants to grant access to resources based on user attributes like department and cost center from their IdP. Which approach should they use?", options: ["Create separate permission sets for each department and manually assign users to the appropriate sets", "Use attribute-based access control (ABAC) with IdP attributes passed through and used in policy conditions", "Configure resource-based policies on each AWS resource with principal conditions for department values", "Create IAM groups in each account matching department names and sync group membership from the IdP"], correct: 1, explanation: "ABAC uses identity attributes (like department, job code, or cost center) passed from your IdP to make access control decisions. You can create permission sets that use these attributes in policy conditions, enabling dynamic, fine-grained access control.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/abac.html" },
+            { id: 10, question: "A user authenticated through QuickSight needs to access S3 data with their corporate identity preserved for audit purposes. Which feature enables this?", options: ["Cross-account role assumption with session tags containing the user's QuickSight identity", "Trusted Identity Propagation, which passes user identity context between AWS services", "Resource-based policies on S3 buckets that trust the QuickSight service principal", "IAM Identity Center permission sets that include both QuickSight and S3 access"], correct: 1, explanation: "Trusted Identity Propagation allows user identity to be passed between AWS services without re-authentication. A user in QuickSight can access S3 or Redshift with their identity preserved, enabling fine-grained access control and audit logging.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/trustedidentitypropagation.html" },
+            { id: 11, question: "A security administrator needs to enable IAM Identity Center for their AWS Organization. Where can this be done?", options: ["From any member account with IAM administrator permissions for that account", "Only from the management account or a designated delegated administrator account", "From the AWS Organizations console in any account with OrganizationsFullAccess policy", "Only from the management account; delegated administration is not supported for Identity Center"], correct: 1, explanation: "IAM Identity Center must be enabled in the AWS Organizations management account or a delegated administrator account. Once enabled, it can manage access to all accounts in the organization from a central location.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/getting-started.html" },
+            { id: 12, question: "A mobile application needs to allow users to sign in with their Google accounts to access AWS resources. Which federation type should be used?", options: ["SAML 2.0 federation with Google configured as the SAML identity provider", "Web identity federation using Google's OIDC-compatible authentication", "IAM Identity Center with Google Workspace configured as the identity source", "Custom identity broker that exchanges Google tokens for IAM access keys"], correct: 1, explanation: "Web identity federation allows users to authenticate using social identity providers (Google, Facebook, Amazon) or any OIDC-compatible IdP. It's commonly used in mobile and web applications to grant users access to AWS resources.", docLink: "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html" },
+            { id: 13, question: "A developer is implementing web identity federation for a mobile app. After receiving an OIDC token from Google, which STS API should they call?", options: ["sts:AssumeRole with the OIDC token provided as the external ID parameter", "sts:AssumeRoleWithSAML after converting the OIDC token to SAML format", "sts:AssumeRoleWithWebIdentity with the OIDC token and the role ARN", "sts:GetFederationToken with the OIDC token as the user identity proof"], correct: 2, explanation: "AssumeRoleWithWebIdentity is used for web identity federation. It takes an OIDC token from an identity provider (like Google or Cognito) and returns temporary AWS credentials. The role must have a trust policy that allows the OIDC provider.", docLink: "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html" },
+            { id: 14, question: "An IAM user needs to perform sensitive operations that require MFA but wants to continue using their current identity. Which STS API should they use?", options: ["AssumeRole with their own role ARN and MFA token to get elevated credentials", "GetSessionToken with MFA parameters to get temporary credentials for their current identity", "AssumeRoleWithSAML with MFA assertion to prove their identity with multi-factor", "GetFederationToken with MFA token to create temporary credentials for API access"], correct: 1, explanation: "GetSessionToken returns temporary credentials for your current IAM user identity, commonly used for MFA-protected API access. AssumeRole is for switching to a different role. GetSessionToken preserves your identity while adding MFA protection.", docLink: "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html" },
+            { id: 15, question: "A company enabled SCIM between Okta and IAM Identity Center. When a user is terminated in Okta, what happens in Identity Center?", options: ["The user must be manually removed from Identity Center to revoke access to AWS accounts", "SCIM automatically deprovisions the user from Identity Center, removing their AWS access", "The user's permissions are suspended but the account remains until manually deleted", "Nothing happens - SCIM only handles initial user creation, not lifecycle management"], correct: 1, explanation: "SCIM (System for Cross-domain Identity Management) enables automatic provisioning AND deprovisioning of users and groups. When users are removed from your IdP, SCIM automatically removes them from Identity Center, revoking their AWS access.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/provision-automatically.html" },
+            { id: 16, question: "A developer wants to use AWS CLI to access multiple accounts through Identity Center without managing access keys. What should they do?", options: ["Download static access keys from the access portal and configure them in each CLI profile", "Use 'aws configure sso' with AWS CLI v2 to set up SSO-enabled profiles with automatic credential refresh", "Create an IAM user in each account and use 'aws configure' with those user's access keys", "Export credentials from the console session and paste them into environment variables"], correct: 1, explanation: "AWS CLI v2 integrates with IAM Identity Center. Users run 'aws configure sso' to set up profiles that authenticate through the access portal and automatically obtain temporary credentials without managing long-term access keys.", docLink: "https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html" },
+            { id: 17, question: "An architect is setting up SAML federation directly with IAM (not Identity Center). What IAM resource must they create to establish trust with their IdP?", options: ["An IAM SAML identity provider resource containing the IdP's SAML metadata document", "An IAM role with the IdP's public key embedded in the trust policy", "An IAM user designated as the federation broker for the external IdP", "An IAM OIDC provider configured with the IdP's SAML endpoint URLs"], correct: 0, explanation: "An IAM SAML provider is a resource that describes an external IdP. It contains the IdP's SAML metadata (including its signing certificate). You reference this provider ARN in role trust policies to enable SAML federation.", docLink: "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_saml.html" },
+            { id: 18, question: "A user's Identity Center session expires after 4 hours. They have an AWS console tab still open. What happens?", options: ["All open console sessions are immediately terminated and the user is logged out", "The user must re-authenticate through the access portal to get new credentials for new operations", "Their console session continues indefinitely since it has its own session management", "Access is temporarily suspended until the session auto-renews in the background"], correct: 1, explanation: "When an Identity Center session expires, users must re-authenticate through the access portal to obtain new temporary credentials. Active console sessions may persist briefly due to their own session tokens, but new sessions require re-authentication.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/howtosessionduration.html" },
+            { id: 19, question: "A company has AWS accounts outside their Organization that they want to include in their SSO solution. How can Identity Center help?", options: ["It cannot - Identity Center only works with accounts within the same AWS Organization", "Configure the external accounts as custom SAML 2.0 applications in Identity Center", "Invite the external accounts to join the Organization before enabling Identity Center access", "Create IAM users in the external accounts and sync them with Identity Center's directory"], correct: 1, explanation: "While Identity Center primarily manages access to organization accounts, you can configure external AWS accounts as custom SAML 2.0 applications. This allows Identity Center to provide SSO to accounts outside your organization.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/saml-custom-idp.html" },
+            { id: 20, question: "A security team is evaluating whether to use IAM Identity Center or create IAM users in each account. What are the key advantages of Identity Center?", options: ["IAM users provide better security isolation since each account has independent identity management", "Identity Center provides centralized management, SSO across accounts, and eliminates long-term credentials in member accounts", "IAM Identity Center costs less per user compared to IAM users which have licensing fees", "IAM users support MFA while Identity Center only supports single-factor authentication"], correct: 1, explanation: "IAM Identity Center provides centralized identity management, single sign-on across all accounts, automatic credential rotation, and eliminates long-term credentials in each account. IAM users would require separate management in each account.", docLink: "https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html" }
+        ];
+
+        let currentMode = 'learn', currentQuestion = 0, userAnswers = [], answersRevealed = [], shuffledQuestions = [], timerInterval = null, timeRemaining = 0, inReviewMode = false, reviewedQuestions = [];
+        function shuffleArray(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
+        function shuffleQuestionOptions(q) { const idx = shuffleArray([0,1,2,3]); return { ...q, options: idx.map(i => q.options[i]), correct: idx.indexOf(q.correct) }; }
+        function startQuiz(mode) { currentMode = mode; currentQuestion = 0; userAnswers = new Array(questions.length).fill(null); answersRevealed = new Array(questions.length).fill(false); shuffledQuestions = shuffleArray(questions).map(shuffleQuestionOptions); inReviewMode = false; reviewedQuestions = []; document.getElementById('modeSelector').classList.add('hidden'); document.getElementById('quizContent').classList.remove('hidden'); document.getElementById('resultsCard').classList.remove('show'); document.getElementById('reviewSection').classList.remove('show'); document.getElementById('backToReviewBtn').style.display = 'none'; document.getElementById('totalQ').textContent = shuffledQuestions.length; if (mode === 'exam') { timeRemaining = shuffledQuestions.length * 150; startTimer(); document.getElementById('shuffleBtn').classList.add('hidden'); } else { document.getElementById('timer').textContent = 'Learn Mode'; document.getElementById('shuffleBtn').classList.remove('hidden'); } renderQuestion(); }
+        function startTimer() { updateTimerDisplay(); timerInterval = setInterval(() => { timeRemaining--; updateTimerDisplay(); if (timeRemaining <= 0) { clearInterval(timerInterval); showResults(); } }, 1000); }
+        function updateTimerDisplay() { const m = Math.floor(timeRemaining / 60), s = timeRemaining % 60, el = document.getElementById('timer'); el.textContent = `${m}:${s.toString().padStart(2, '0')}`; el.classList.remove('warning', 'danger'); if (timeRemaining <= 60) el.classList.add('danger'); else if (timeRemaining <= 300) el.classList.add('warning'); }
+        function renderQuestion() { const q = shuffledQuestions[currentQuestion], letters = ['A','B','C','D'], ans = userAnswers[currentQuestion], revealed = answersRevealed[currentQuestion]; let opts = q.options.map((o, i) => { let c = 'option'; if (currentMode === 'learn' && revealed) { c += ' disabled'; if (i === q.correct) c += ' correct'; else if (i === ans && ans !== q.correct) c += ' incorrect'; } else if (ans === i) c += ' selected'; return `<div class="${c}" onclick="selectOption(${i})"><span class="option-marker">${letters[i]}</span><span class="option-text">${o}</span></div>`; }).join(''); let exp = currentMode === 'learn' ? `<div class="explanation ${revealed ? 'show' : ''}"><div class="explanation-title">📖 Explanation</div><div class="answer-header">Correct Answer: ${letters[q.correct]}</div><p class="explanation-text">${q.explanation}</p><a href="${q.docLink}" target="_blank" class="doc-link">📄 View AWS Documentation →</a></div>` : ''; document.getElementById('questionsContainer').innerHTML = `<div class="question-card"><div class="question-header"><span class="question-number">Question ${currentQuestion + 1}</span><span class="question-domain">Identity Center & Federation</span></div><p class="question-text">${q.question}</p><div class="options">${opts}</div>${currentMode === 'learn' && !revealed ? '<button class="btn btn-primary" style="margin-top:1rem;width:100%;" onclick="revealAnswer()">Show Answer</button>' : ''}${exp}</div>`; document.getElementById('currentQ').textContent = currentQuestion + 1; document.getElementById('progressFill').style.width = `${((currentQuestion + 1) / shuffledQuestions.length) * 100}%`; document.getElementById('prevBtn').disabled = currentQuestion === 0; document.getElementById('nextBtn').textContent = currentQuestion === shuffledQuestions.length - 1 ? (currentMode === 'exam' ? 'Submit Quiz' : 'See Results') : 'Next →'; }
+        function selectOption(i) { if (currentMode === 'learn' && answersRevealed[currentQuestion]) return; userAnswers[currentQuestion] = i; renderQuestion(); }
+        function revealAnswer() { if (userAnswers[currentQuestion] === null) userAnswers[currentQuestion] = -1; answersRevealed[currentQuestion] = true; renderQuestion(); }
+        function navigate(d) { if (d === 1 && currentQuestion === shuffledQuestions.length - 1) { showResults(); return; } currentQuestion = Math.max(0, Math.min(currentQuestion + d, shuffledQuestions.length - 1)); renderQuestion(); }
+        function shuffleQuiz() { if (currentMode !== 'learn') return; currentQuestion = 0; userAnswers = new Array(questions.length).fill(null); answersRevealed = new Array(questions.length).fill(false); shuffledQuestions = shuffleArray(questions).map(shuffleQuestionOptions); renderQuestion(); }
+        function showResults() { if (timerInterval) clearInterval(timerInterval); let correct = shuffledQuestions.reduce((c, q, i) => c + (userAnswers[i] === q.correct ? 1 : 0), 0); const total = shuffledQuestions.length, pct = Math.round((correct / total) * 100), pass = pct >= 80; document.getElementById('quizContent').classList.add('hidden'); document.getElementById('reviewSection').classList.remove('show'); document.getElementById('resultsCard').classList.add('show'); document.getElementById('scorePercent').textContent = pct + '%'; document.getElementById('scorePercent').className = 'results-score ' + (pass ? 'pass' : 'fail'); document.getElementById('resultStatus').textContent = pass ? '🎉 PASSED!' : '📚 Keep Studying'; document.getElementById('resultStatus').className = 'results-status ' + (pass ? 'pass' : 'fail'); document.getElementById('resultDetails').textContent = `You answered ${correct} out of ${total} questions correctly.`; document.getElementById('correctCount').textContent = correct; document.getElementById('incorrectCount').textContent = total - correct; }
+        function restartQuiz() { document.getElementById('resultsCard').classList.remove('show'); document.getElementById('reviewSection').classList.remove('show'); document.getElementById('backToReviewBtn').style.display = 'none'; document.getElementById('modeSelector').classList.remove('hidden'); document.getElementById('quizContent').classList.add('hidden'); inReviewMode = false; reviewedQuestions = []; if (timerInterval) clearInterval(timerInterval); }
+        function showReview() { const letters = ['A','B','C','D'], tbody = document.getElementById('reviewTableBody'); tbody.innerHTML = ''; shuffledQuestions.forEach((q, idx) => { const userAns = userAnswers[idx] !== null && userAnswers[idx] !== undefined ? userAnswers[idx] : -1, isCorrect = userAns === q.correct, rowClass = reviewedQuestions.includes(idx) ? 'reviewed' : ''; let row = '<tr class="' + rowClass + '" onclick="reviewQuestion(' + idx + ')">'; row += '<td class="review-q-num">' + (idx + 1) + '</td>'; row += '<td class="review-q-text">' + q.question.substring(0, 100) + (q.question.length > 100 ? '...' : '') + '</td>'; row += '<td class="review-answer ' + (userAns >= 0 ? (isCorrect ? 'correct' : 'incorrect') : '') + '">' + (userAns >= 0 ? letters[userAns] : '—') + '</td>'; row += '<td class="review-answer correct">' + letters[q.correct] + '</td>'; row += '<td>' + (isCorrect ? '<span style="color:var(--success)">✓ Correct</span>' : '<span style="color:var(--error)">✗ Incorrect</span>') + '</td>'; row += '</tr>'; tbody.innerHTML += row; }); document.getElementById('totalReviewCount').textContent = shuffledQuestions.length; document.getElementById('reviewedCount').textContent = reviewedQuestions.length; document.getElementById('resultsCard').classList.remove('show'); document.getElementById('reviewSection').classList.add('show'); }
+        function reviewQuestion(qIndex) { if (!reviewedQuestions.includes(qIndex)) { reviewedQuestions.push(qIndex); document.getElementById('reviewedCount').textContent = reviewedQuestions.length; } currentMode = 'learn'; currentQuestion = qIndex; answersRevealed[qIndex] = true; inReviewMode = true; document.getElementById('reviewSection').classList.remove('show'); document.getElementById('quizContent').classList.remove('hidden'); document.getElementById('timer').textContent = 'Learn Mode'; document.getElementById('shuffleBtn').style.display = 'none'; document.getElementById('backToReviewBtn').style.display = 'inline-block'; if (timerInterval) clearInterval(timerInterval); renderQuestion(); }
+        function backToReview() { document.getElementById('quizContent').classList.add('hidden'); document.getElementById('backToReviewBtn').style.display = 'none'; document.getElementById('reviewSection').classList.add('show'); showReview(); }
+        function backToResults() { document.getElementById('reviewSection').classList.remove('show'); document.getElementById('resultsCard').classList.add('show'); }
+    </script>
+</body>
+</html>

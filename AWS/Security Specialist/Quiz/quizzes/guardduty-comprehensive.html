@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon GuardDuty Comprehensive Quiz | AWS Security Specialty (SCS-C03)</title>
+    <style>
+        :root { --bg-primary: #0a0e17; --bg-secondary: #141b2d; --bg-tertiary: #1a2236; --text-primary: #e2e8f0; --text-secondary: #94a3b8; --accent-primary: #14b8a6; --accent-secondary: #2dd4bf; --success: #22c55e; --error: #ef4444; --warning: #eab308; --info: #3b82f6; --border: #2d3a52; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        header { text-align: center; margin-bottom: 2rem; padding: 2rem; background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%); border-radius: 16px; border: 1px solid var(--border); }
+        .badge { display: inline-block; background: var(--accent-primary); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 1rem; text-transform: uppercase; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: var(--text-secondary); font-size: 1rem; }
+        .stats-bar { display: flex; justify-content: center; gap: 2rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .stat { text-align: center; } .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); } .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
+        .mode-selector { display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; }
+        .mode-btn { padding: 0.75rem 2rem; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 8px; cursor: pointer; font-size: 1rem; transition: all 0.3s ease; }
+        .mode-btn:hover { border-color: var(--accent-primary); background: var(--bg-tertiary); }
+        .mode-btn.active { border-color: var(--accent-primary); background: linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(45, 212, 191, 0.1)); }
+        .progress-container { background: var(--bg-secondary); border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .progress-text { font-size: 0.875rem; color: var(--text-secondary); }
+        .timer { font-size: 1.25rem; font-weight: 600; color: var(--accent-primary); font-family: 'Consolas', monospace; }
+        .timer.warning { color: var(--warning); animation: pulse 1s infinite; } .timer.danger { color: var(--error); animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius: 4px; transition: width 0.3s ease; }
+        .question-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .question-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .question-number { background: var(--bg-tertiary); color: var(--accent-primary); padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; }
+        .question-domain { font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px; }
+        .question-text { font-size: 1.125rem; margin-bottom: 1.5rem; line-height: 1.7; }
+        .options { display: flex; flex-direction: column; gap: 0.75rem; }
+        .option { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-tertiary); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
+        .option:hover:not(.disabled) { border-color: var(--accent-primary); background: rgba(20, 184, 166, 0.1); }
+        .option.selected { border-color: var(--accent-primary); border-width: 3px; background: rgba(20, 184, 166, 0.2); box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.25), inset 0 0 12px rgba(20, 184, 166, 0.1); }
+        .option.correct { border-color: var(--success); background: rgba(34, 197, 94, 0.15); }
+        .option.incorrect { border-color: var(--error); background: rgba(239, 68, 68, 0.15); }
+        .option.disabled { cursor: default; }
+        .option-marker { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.875rem; flex-shrink: 0; transition: all 0.2s ease; }
+        .option.selected .option-marker { border-color: var(--accent-primary); background: var(--accent-primary); color: white; }
+        .option.correct .option-marker { border-color: var(--success); background: var(--success); color: white; }
+        .option.incorrect .option-marker { border-color: var(--error); background: var(--error); color: white; }
+        .option-text { flex: 1; padding-top: 2px; }
+        .answer-section { margin-top: 1.5rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; border-left: 4px solid var(--info); display: none; }
+        .answer-section.visible { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .answer-header { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--success); }
+        .answer-header svg { width: 20px; height: 20px; }
+        .explanation { color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.7; }
+        .doc-link { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--accent-primary); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; background: rgba(20, 184, 166, 0.1); border-radius: 6px; transition: all 0.2s ease; }
+        .doc-link:hover { background: rgba(20, 184, 166, 0.2); }
+        .doc-link svg { width: 16px; height: 16px; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+        .btn-reveal { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-reveal:hover { border-color: var(--accent-primary); background: rgba(20, 184, 166, 0.1); }
+        .btn-reveal:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(20, 184, 166, 0.4); }
+        .results-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; text-align: center; border: 1px solid var(--border); display: none; }
+        .results-card.visible { display: block; animation: fadeIn 0.5s ease; }
+        .results-card h2 { font-size: 1.5rem; margin-bottom: 1rem; color: var(--text-secondary); }
+        .results-score { font-size: 4rem; font-weight: 700; margin: 1rem 0; }
+        .results-score.pass { color: var(--success); }
+        .results-score.fail { color: var(--error); }
+        .results-status { font-size: 1.5rem; margin-bottom: 1rem; }
+        .results-status.pass { color: var(--success); }
+        .results-status.fail { color: var(--error); }
+        .results-details { color: var(--text-secondary); margin-bottom: 2rem; }
+        .results-breakdown { display: flex; justify-content: center; gap: 3rem; margin-bottom: 2rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; }
+        .breakdown-item { text-align: center; }
+        .breakdown-value { font-size: 2rem; font-weight: 700; }
+        .breakdown-value.correct { color: var(--success); }
+        .breakdown-value.incorrect { color: var(--error); }
+        .breakdown-label { font-size: 0.875rem; color: var(--text-secondary); }
+        .hidden { display: none !important; }
+        .shuffle-notice { text-align: center; padding: 0.75rem; background: rgba(20, 184, 166, 0.1); border-radius: 8px; margin-bottom: 1.5rem; color: var(--accent-secondary); font-size: 0.875rem; }
+        .btn-group { display: flex; gap: 1rem; justify-content: center; margin-top: 1rem; }
+        .review-section { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; border: 1px solid var(--border); display: none; }
+        .review-section.show { display: block; animation: fadeIn 0.5s ease; }
+        .review-header { text-align: center; margin-bottom: 2rem; }
+        .review-hint { text-align: center; color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem; }
+        .review-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        .review-table th { background: var(--bg-tertiary); color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; padding: 1rem; text-align: left; border-bottom: 2px solid var(--border); }
+        .review-table td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .review-table tbody tr { cursor: pointer; transition: all 0.2s ease; }
+        .review-table tbody tr:hover { background: rgba(20, 184, 166, 0.1); transform: translateX(4px); }
+        .review-table tbody tr.reviewed { background: rgba(20, 184, 166, 0.25); border-left: 6px solid var(--accent-primary); box-shadow: inset 0 0 20px rgba(20, 184, 166, 0.15); }
+        .review-table tbody tr.reviewed:hover { background: rgba(20, 184, 166, 0.3); }
+        .review-table tbody tr.reviewed .review-q-num { color: var(--accent-secondary); font-weight: 800; }
+        .review-table tbody tr.reviewed .review-q-num::before { content: "✓ "; color: var(--accent-primary); font-size: 1rem; }
+        .review-q-num { font-weight: 700; color: var(--accent-primary); white-space: nowrap; }
+        .review-q-text { color: var(--text-primary); line-height: 1.6; }
+        .review-answer { font-weight: 600; }
+        .review-answer.correct { color: var(--success); }
+        .review-answer.incorrect { color: var(--error); }
+        .review-status { text-align: center; font-size: 1.25rem; }
+        body.exam-mode .btn-reveal { display: none; }
+        body.exam-mode .answer-section { display: none !important; }
+        body.exam-mode .answer-section.visible { display: block !important; }
+        .submit-container { display: none; text-align: center; margin: 2rem 0; }
+        body.exam-mode .submit-container { display: block; }
+        .btn-submit { background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; padding: 1rem 3rem; font-size: 1.1rem; font-weight: 600; border: none; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(20, 184, 166, 0.3); }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+        .timer-container { display: none; background: var(--bg-secondary); border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 2rem; border: 1px solid var(--border); text-align: center; }
+        body.exam-mode .timer-container { display: block; }
+        .timer-display { font-family: 'Consolas', monospace; font-size: 2rem; font-weight: 600; color: var(--accent-primary); }
+        .timer-display.warning { color: var(--warning); animation: pulse 1s infinite; }
+        .timer-display.critical { color: var(--error); animation: pulse 0.5s infinite; }
+        .btn-container { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+        @media (max-width: 640px) { .container { padding: 1rem; } h1 { font-size: 1.5rem; } .stats-bar { gap: 1rem; } .mode-selector, .btn-container, .results-breakdown { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="badge">Domain 1: Detection</span>
+            <h1>Amazon GuardDuty</h1>
+            <p class="subtitle">Comprehensive Quiz for AWS Security Specialty (SCS-C03)</p>
+            <div class="stats-bar">
+                <div class="stat"><div class="stat-value">25</div><div class="stat-label">Questions</div></div>
+                <div class="stat"><div class="stat-value">80%</div><div class="stat-label">Pass Score</div></div>
+                <div class="stat"><div class="stat-value">62:30</div><div class="stat-label">Exam Time</div></div>
+            </div>
+        </header>
+        <div class="mode-selector" id="modeSelector">
+            <button class="mode-btn" onclick="startQuiz('learn')">📚 Learn Mode</button>
+            <button class="mode-btn" onclick="startQuiz('exam')">⏱️ Exam Mode</button>
+        </div>
+
+        <div id="quizContent" class="hidden">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span class="progress-text">Question <span id="currentQ">1</span> of <span id="totalQ">25</span></span>
+                    <span class="timer" id="timer">62:30</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="shuffle-notice" id="shuffleNotice">🔀 Questions and options have been randomized</div>
+            <div id="questionsContainer"></div>
+            <div class="btn-container">
+                <button class="btn btn-secondary" id="backToReviewBtn" onclick="backToReview()" style="display: none;">← Back to Review</button>
+                <button class="btn btn-secondary" id="prevBtn" onclick="navigate(-1)" disabled>← Previous</button>
+                <button class="btn btn-secondary" id="shuffleBtn" onclick="shuffleQuiz()">🔀 Shuffle</button>
+                <button class="btn btn-primary" id="nextBtn" onclick="navigate(1)">Next →</button>
+            </div>
+        </div>
+
+        <div id="questions" style="display: none;">
+            <!-- Question 1 -->
+            <div class="question-card" data-question="1" data-answer="C">
+                <div class="question-header">
+                    <div class="question-number">1</div>
+                    <div class="question-text">What are the THREE foundational data sources that GuardDuty automatically analyzes when enabled?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q1" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">CloudTrail data events, S3 access logs, CloudWatch Logs</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q1" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">CloudTrail management events, ELB access logs, CloudWatch metrics</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q1" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">CloudTrail management events, VPC Flow Logs, Route53 Resolver DNS query logs</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q1" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">VPC Flow Logs, AWS Config recordings, Security Hub findings</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(1)">Show Answer</button>
+                <div class="answer-section" id="answer1">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: C
+                    </div>
+                    <p class="explanation">When you enable GuardDuty, it automatically starts ingesting three foundational data sources: AWS CloudTrail management events (control plane operations), VPC Flow Logs (network traffic metadata), and Route53 Resolver DNS query logs. You don't need to enable anything else for GuardDuty to analyze these sources.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_data-sources.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Foundational Data Sources
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 2 -->
+            <div class="question-card" data-question="2" data-answer="B">
+                <div class="question-header">
+                    <div class="question-number">2</div>
+                    <div class="question-text">What does S3 Protection in GuardDuty monitor to detect potential data threats?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q2" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">S3 access logs stored in a dedicated logging bucket for analysis</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q2" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">AWS CloudTrail data events for S3 object-level API operations</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q2" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">S3 bucket policies, ACL configurations, and IAM permissions</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q2" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">CloudWatch S3 metrics, alarms, and performance monitoring data</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(2)">Show Answer</button>
+                <div class="answer-section" id="answer2">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: B
+                    </div>
+                    <p class="explanation">S3 Protection monitors AWS CloudTrail data events for S3, which includes object-level API operations like GetObject, PutObject, ListObjects, and DeleteObject. This is different from CloudTrail management events (control plane). You don't need to explicitly enable S3 data event logging in CloudTrail for this to work.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/s3-protection.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty S3 Protection
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 3 -->
+            <div class="question-card" data-question="3" data-answer="D">
+                <div class="question-header">
+                    <div class="question-number">3</div>
+                    <div class="question-text">Which GuardDuty protection plan uses a security agent to monitor operating system-level events?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q3" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">S3 Protection</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q3" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">EKS Audit Log Monitoring</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q3" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Lambda Protection</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q3" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Runtime Monitoring</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(3)">Show Answer</button>
+                <div class="answer-section" id="answer3">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: D
+                    </div>
+                    <p class="explanation">Runtime Monitoring uses a GuardDuty security agent that adds visibility into runtime behavior, such as file access, process execution, command line arguments, and network connections. It supports Amazon EKS, AWS Fargate (ECS), and Amazon EC2 resources. The agent can be managed automatically or manually.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/runtime-monitoring.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Runtime Monitoring
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 4 -->
+            <div class="question-card" data-question="4" data-answer="A">
+                <div class="question-header">
+                    <div class="question-number">4</div>
+                    <div class="question-text">What type of scan does Malware Protection for EC2 perform when a GuardDuty finding indicates potential malware?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q4" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">GuardDuty-initiated agentless malware scan of EBS volumes</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q4" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Agent-based real-time file scanning on EC2 instances</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q4" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Memory dump analysis and process inspection</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q4" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Network traffic inspection for known malware signatures</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(4)">Show Answer</button>
+                <div class="answer-section" id="answer4">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: A
+                    </div>
+                    <p class="explanation">Malware Protection for EC2 performs agentless GuardDuty-initiated malware scans by scanning Amazon EBS volumes attached to EC2 instances and container workloads. When GuardDuty generates a finding indicating potential malware presence, it automatically initiates a scan. You can also trigger On-demand malware scans manually.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/malware-protection.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Malware Protection for EC2
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 5 -->
+            <div class="question-card" data-question="5" data-answer="C">
+                <div class="question-header">
+                    <div class="question-number">5</div>
+                    <div class="question-text">What does RDS Protection in GuardDuty analyze to detect potential database threats?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q5" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">SQL query patterns and database schema changes</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q5" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Database performance metrics and slow query logs</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q5" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">RDS login activity for anomalous login behavior</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q5" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Database encryption settings and key rotation events</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(5)">Show Answer</button>
+                <div class="answer-section" id="answer5">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: C
+                    </div>
+                    <p class="explanation">RDS Protection analyzes and profiles RDS login activity for potential access threats. It detects anomalous login behavior such as previously unseen external actors gaining unauthorized access, or brute-force attempts. It supports Amazon Aurora (MySQL and PostgreSQL compatible) and Amazon RDS for PostgreSQL databases.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/rds-protection.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty RDS Protection
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 6 -->
+            <div class="question-card" data-question="6" data-answer="B">
+                <div class="question-header">
+                    <div class="question-number">6</div>
+                    <div class="question-text">What does Lambda Protection in GuardDuty monitor to detect threats?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q6" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Lambda function code, dependencies, and deployment packages</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q6" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Lambda network activity logs from VPC and non-VPC functions</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q6" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Lambda execution logs, errors, and performance metrics in CloudWatch</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q6" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Lambda IAM role permissions, policy changes, and access patterns</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(6)">Show Answer</button>
+                <div class="answer-section" id="answer6">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: B
+                    </div>
+                    <p class="explanation">Lambda Protection monitors Lambda network activity logs, including VPC Flow Logs from all Lambda functions (even those that don't use VPC networking). It detects potential threats like cryptomining and communication with malicious servers. Note: Lambda@Edge functions are not included.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/lambda-protection.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Lambda Protection
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 7 -->
+            <div class="question-card" data-question="7" data-answer="B">
+                <div class="question-header">
+                    <div class="question-number">7</div>
+                    <div class="question-text">In a multi-account AWS Organizations setup, what is the recommended way to manage GuardDuty?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q7" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Enable GuardDuty independently in each account</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q7" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Designate a delegated GuardDuty administrator account</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q7" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Use the management account as the GuardDuty administrator</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q7" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Create a separate GuardDuty detector per AWS Region only</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(7)">Show Answer</button>
+                <div class="answer-section" id="answer7">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: B
+                    </div>
+                    <p class="explanation">For multi-account environments, AWS recommends using AWS Organizations and designating a delegated GuardDuty administrator account. This account can manage GuardDuty for all member accounts, configure protection plans organization-wide, and view consolidated findings. The legacy invitation method is also available but Organizations is recommended.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/delegated-admin-designate.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Designating a Delegated Administrator
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 8 -->
+            <div class="question-card" data-question="8" data-answer="A">
+                <div class="question-header">
+                    <div class="question-number">8</div>
+                    <div class="question-text">What can you configure using trusted IP lists and threat lists in GuardDuty?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q8" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Customize threat detection with trusted and known malicious IP addresses</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q8" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Block specific IP addresses from accessing AWS resources via WAF</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q8" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Configure firewall rules and ingress policies for VPC security groups</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q8" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Set up DNS filtering and domain blocking for known malicious domains</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(8)">Show Answer</button>
+                <div class="answer-section" id="answer8">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: A
+                    </div>
+                    <p class="explanation">Trusted IP lists and threat lists allow you to customize GuardDuty's threat detection. Trusted IP lists contain IP addresses that should not trigger findings (e.g., your known infrastructure). Threat lists contain known malicious IPs to enhance detection. These are stored in S3 buckets and referenced by GuardDuty.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_upload-lists.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Customizing Threat Detection with Lists
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 9 -->
+            <div class="question-card" data-question="9" data-answer="C">
+                <div class="question-header">
+                    <div class="question-number">9</div>
+                    <div class="question-text">How can you automate responses to GuardDuty findings?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q9" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Using GuardDuty's built-in auto-remediation feature</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q9" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Configuring GuardDuty to directly invoke Lambda functions</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q9" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Using Amazon EventBridge rules to trigger Lambda or Step Functions</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q9" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Enabling automatic finding resolution in GuardDuty settings</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(9)">Show Answer</button>
+                <div class="answer-section" id="answer9">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: C
+                    </div>
+                    <p class="explanation">GuardDuty integrates with Amazon EventBridge to enable automated responses. You can create EventBridge rules that match GuardDuty finding events and trigger targets like Lambda functions, Step Functions, SNS topics, or other AWS services. This enables automated monitoring, custom notification frequency, and incident response workflows.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings_eventbridge.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Processing Findings with EventBridge
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 10 -->
+            <div class="question-card" data-question="10" data-answer="D">
+                <div class="question-header">
+                    <div class="question-number">10</div>
+                    <div class="question-text">What purpose do suppression rules serve in GuardDuty?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q10" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Block threats from affecting AWS resources through automated remediation</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q10" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Delete findings permanently from the GuardDuty system and Security Hub</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q10" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Disable specific protection plans temporarily for maintenance windows</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q10" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Automatically archive findings matching specific criteria to reduce noise</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(10)">Show Answer</button>
+                <div class="answer-section" id="answer10">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: D
+                    </div>
+                    <p class="explanation">Suppression rules filter low-value, false positive findings, or threats you don't intend to act on. Matching findings are automatically archived, making it easier to focus on impactful security threats. Common use cases include suppressing findings from vulnerability scanners, bastion hosts, or intentionally exposed instances.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/findings_suppression-rule.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Suppression Rules in GuardDuty
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 11 -->
+            <div class="question-card" data-question="11" data-answer="B">
+                <div class="question-header">
+                    <div class="question-number">11</div>
+                    <div class="question-text">What is the free trial period for GuardDuty and its protection plans?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q11" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">14 days for core GuardDuty, no trial for protection plans</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q11" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">30 days for GuardDuty and each protection plan individually</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q11" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">90 days combined for all services</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q11" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Free forever with usage limits</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(11)">Show Answer</button>
+                <div class="answer-section" id="answer11">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: B
+                    </div>
+                    <p class="explanation">GuardDuty offers a 30-day free trial when you first enable it in an account/Region. Each protection plan (S3, EKS, Lambda, RDS, Runtime Monitoring, Malware Protection) also has its own 30-day free trial when first enabled. During the trial, you can estimate usage costs before charges begin.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-pricing.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Pricing
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 12 -->
+            <div class="question-card" data-question="12" data-answer="A">
+                <div class="question-header">
+                    <div class="question-number">12</div>
+                    <div class="question-text">Which GuardDuty protection plan can be used independently without enabling the core GuardDuty service?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q12" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Malware Protection for S3</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q12" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">S3 Protection</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q12" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Lambda Protection</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q12" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Runtime Monitoring</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(12)">Show Answer</button>
+                <div class="answer-section" id="answer12">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: A
+                    </div>
+                    <p class="explanation">GuardDuty offers flexibility to use Malware Protection for S3 independently, without enabling the core Amazon GuardDuty service. This allows you to scan newly uploaded S3 objects for malware without the full GuardDuty deployment. All other protection plans require the GuardDuty service to be enabled first.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/gdu-malware-protection-s3.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Malware Protection for S3
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 13 -->
+            <div class="question-card" data-question="13" data-answer="C">
+                <div class="question-header">
+                    <div class="question-number">13</div>
+                    <div class="question-text">What severity levels does GuardDuty use to classify findings?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q13" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Info, Warning, Error, Critical</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q13" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">P1, P2, P3, P4, P5</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q13" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Low, Medium, High, Critical</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q13" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Green, Yellow, Orange, Red</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(13)">Show Answer</button>
+                <div class="answer-section" id="answer13">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: C
+                    </div>
+                    <p class="explanation">GuardDuty uses four severity levels: Low (1.0-3.9), Medium (4.0-6.9), High (7.0-8.9), and Critical (9.0-10.0). Critical findings indicate attack sequences or active compromise. High indicates actively compromised resources. Medium indicates suspicious activity. Low indicates attempted suspicious activity that didn't succeed.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings-severity.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Severity Levels of GuardDuty Findings
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 14 -->
+            <div class="question-card" data-question="14" data-answer="D">
+                <div class="question-header">
+                    <div class="question-number">14</div>
+                    <div class="question-text">Which AWS service provides a consolidated view of GuardDuty findings along with other security findings?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q14" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">AWS CloudWatch</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q14" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">AWS Config</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q14" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Amazon Detective</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q14" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">AWS Security Hub</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(14)">Show Answer</button>
+                <div class="answer-section" id="answer14">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: D
+                    </div>
+                    <p class="explanation">AWS Security Hub provides a comprehensive view of your security state across AWS accounts and integrates findings from GuardDuty, Amazon Inspector, Amazon Macie, and other AWS security services. GuardDuty automatically sends findings to Security Hub when both services are enabled. Amazon Detective is used for investigation/root cause analysis.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/what-is-guardduty.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Integration with Security Hub
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 15 -->
+            <div class="question-card" data-question="15" data-answer="B">
+                <div class="question-header">
+                    <div class="question-number">15</div>
+                    <div class="question-text">What is Extended Threat Detection in GuardDuty designed to identify?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q15" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Single API call anomalies with high confidence</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q15" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Multi-stage attacks that span data sources, resources, and time</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q15" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Configuration drift in infrastructure</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q15" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Compliance violations against CIS benchmarks</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(15)">Show Answer</button>
+                <div class="answer-section" id="answer15">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: B
+                    </div>
+                    <p class="explanation">Extended Threat Detection automatically detects multi-stage attacks that span data sources, multiple types of AWS resources, and time within an account. It correlates "signals" (including weak signals like individual API activities) to identify attack sequences. It's enabled by default at no additional cost when GuardDuty is enabled.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-extended-threat-detection.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Extended Threat Detection Overview
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 16 -->
+            <div class="question-card" data-question="16" data-answer="A">
+                <div class="question-header">
+                    <div class="question-number">16</div>
+                    <div class="question-text">What threat scenarios can GuardDuty detect through foundational threat detection (without additional protection plans)?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q16" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Compromised credentials, cryptomining, and communication with malicious IPs/domains</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q16" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">S3 bucket policy violations and access control misconfigurations</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q16" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Lambda function vulnerabilities and code-level security issues</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q16" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">EKS cluster misconfigurations and Kubernetes security gaps</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(16)">Show Answer</button>
+                <div class="answer-section" id="answer16">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: A
+                    </div>
+                    <p class="explanation">Foundational threat detection (using CloudTrail, VPC Flow Logs, and DNS logs) can detect compromised and exfiltrated AWS credentials, unauthorized cryptomining activity, communication with known malicious IP addresses and domains, and reconnaissance activities. Protection plans add specialized detection for specific services.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/what-is-guardduty.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        What is Amazon GuardDuty?
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 17 -->
+            <div class="question-card" data-question="17" data-answer="C">
+                <div class="question-header">
+                    <div class="question-number">17</div>
+                    <div class="question-text">How does GuardDuty handle CloudTrail Global Service Events (like IAM and STS)?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q17" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Processes them only in us-east-1 where global services are hosted</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q17" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Ignores them entirely as they are not region-specific</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q17" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Replicates and processes them in each Region where GuardDuty is enabled</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q17" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Requires manual configuration in each Region to enable processing</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(17)">Show Answer</button>
+                <div class="answer-section" id="answer17">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: C
+                    </div>
+                    <p class="explanation">When GuardDuty consumes CloudTrail Global Service Events (like IAM, STS, S3, CloudFront, Route 53), it replicates those events and processes them in each Region where GuardDuty is enabled. This helps maintain user and role profiles in each Region, vital for detecting anomalous events consistently across all regions.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_data-sources.html#guardduty_controlplane" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        CloudTrail Management Events
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 18 -->
+            <div class="question-card" data-question="18" data-answer="B">
+                <div class="question-header">
+                    <div class="question-number">18</div>
+                    <div class="question-text">What type of malware scanning does Malware Protection for S3 provide?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q18" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Periodic full bucket scans on a schedule</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q18" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Scans newly uploaded objects in configured S3 buckets</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q18" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Real-time network traffic scanning for malware</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q18" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Scans S3 access patterns for anomalies</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(18)">Show Answer</button>
+                <div class="answer-section" id="answer18">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: B
+                    </div>
+                    <p class="explanation">Malware Protection for S3 scans newly uploaded objects within your configured Amazon S3 buckets for potential malware. It provides a 12-month free tier and can be used independently without enabling the full GuardDuty service. This is different from Malware Protection for EC2 which scans EBS volumes.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/gdu-malware-protection-s3.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Malware Protection for S3
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 19 -->
+            <div class="question-card" data-question="19" data-answer="D">
+                <div class="question-header">
+                    <div class="question-number">19</div>
+                    <div class="question-text">What are the five attack sequence finding types in GuardDuty Extended Threat Detection?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q19" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">EKS, ECS, EC2, Lambda, and RDS service names</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q19" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">IAM, S3, VPC, CloudTrail, and DNS data sources</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q19" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Recon, Initial Access, Persistence, Exfiltration, and Impact stages</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q19" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">EKS/CompromisedCluster, ECS/CompromisedCluster, EC2/CompromisedInstanceGroup, IAM/CompromisedCredentials, S3/CompromisedData</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(19)">Show Answer</button>
+                <div class="answer-section" id="answer19">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: D
+                    </div>
+                    <p class="explanation">The five attack sequence finding types are: AttackSequence:EKS/CompromisedCluster, AttackSequence:ECS/CompromisedCluster, AttackSequence:EC2/CompromisedInstanceGroup, AttackSequence:IAM/CompromisedCredentials, and AttackSequence:S3/CompromisedData. All are classified as Critical severity.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-attack-sequence-finding-types.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Attack Sequence Finding Types
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 20 -->
+            <div class="question-card" data-question="20" data-answer="A">
+                <div class="question-header">
+                    <div class="question-number">20</div>
+                    <div class="question-text">Which resources does Runtime Monitoring support for threat detection?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q20" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Amazon EKS, AWS Fargate (ECS), and Amazon EC2</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q20" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Only Amazon EKS clusters with managed node groups</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q20" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Lambda functions, S3 buckets, and API Gateway endpoints</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q20" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">RDS databases, ElastiCache clusters, and Redshift clusters</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(20)">Show Answer</button>
+                <div class="answer-section" id="answer20">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: A
+                    </div>
+                    <p class="explanation">Runtime Monitoring supports Amazon EKS, AWS Fargate (Amazon ECS), and Amazon EC2 resources. Note that GuardDuty does NOT support Amazon EKS clusters running on AWS Fargate. The security agent can be managed automatically or manually depending on the resource type.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/runtime-monitoring.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Runtime Monitoring Overview
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 21 -->
+            <div class="question-card" data-question="21" data-answer="C">
+                <div class="question-header">
+                    <div class="question-number">21</div>
+                    <div class="question-text">What is the rolling time window that Extended Threat Detection uses to identify attack sequences?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q21" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">1 hour</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q21" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">12 hours</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q21" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">24 hours</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q21" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">7 days</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(21)">Show Answer</button>
+                <div class="answer-section" id="answer21">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: C
+                    </div>
+                    <p class="explanation">GuardDuty Extended Threat Detection is designed to identify potential in-progress or recent attack behaviors within a 24-hour rolling time window in your account. This allows detection of attack sequences where different stages may occur over several hours.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-extended-threat-detection.html#extended-threat-detection-how-it-works" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        How Extended Threat Detection Works
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 22 -->
+            <div class="question-card" data-question="22" data-answer="B">
+                <div class="question-header">
+                    <div class="question-number">22</div>
+                    <div class="question-text">How does Extended Threat Detection handle findings that are archived due to suppression rules?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q22" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Includes them with lower weight in correlation analysis</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q22" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Does not consider them for attack sequence correlation</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q22" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Automatically unarchives them when part of a detected sequence</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q22" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Creates duplicate findings for correlation and analysis purposes</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(22)">Show Answer</button>
+                <div class="answer-section" id="answer22">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: B
+                    </div>
+                    <p class="explanation">Extended Threat Detection doesn't consider archived findings, including those automatically archived because of suppression rules. This ensures only active, relevant signals contribute to attack sequence detection. You should review existing suppression rules to ensure you're not missing important signals.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/findings_suppression-rule.html#using-suppression-rules-with-extended-threat-detection" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Suppression Rules with Extended Threat Detection
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 23 -->
+            <div class="question-card" data-question="23" data-answer="D">
+                <div class="question-header">
+                    <div class="question-number">23</div>
+                    <div class="question-text">Which EKS protection plans should be enabled together for comprehensive threat detection?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q23" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Only EKS Audit Log Monitoring for control plane activities</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q23" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Only Runtime Monitoring for EKS container workloads</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q23" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">S3 Protection and Lambda Protection for serverless resources</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q23" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Both EKS Protection (audit logs) and Runtime Monitoring</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(23)">Show Answer</button>
+                <div class="answer-section" id="answer23">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: D
+                    </div>
+                    <p class="explanation">For maximum EKS coverage, GuardDuty recommends enabling both EKS Protection and Runtime Monitoring. EKS Protection monitors control plane activities through audit logs (RBAC changes, privileged pod creation), while Runtime Monitoring observes container-level behaviors (cryptomining, malicious processes). Together, they detect complex attack patterns.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty-extended-threat-detection.html#extended-threat-detection-eks-clusters" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Detecting Attack Sequences in EKS
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 24 -->
+            <div class="question-card" data-question="24" data-answer="A">
+                <div class="question-header">
+                    <div class="question-number">24</div>
+                    <div class="question-text">What AWS service can you use to investigate and perform root cause analysis on GuardDuty findings?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q24" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Amazon Detective</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q24" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">AWS CloudTrail Insights</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q24" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Amazon Macie</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q24" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">AWS Trusted Advisor</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(24)">Show Answer</button>
+                <div class="answer-section" id="answer24">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: A
+                    </div>
+                    <p class="explanation">Amazon Detective helps you investigate and perform root cause analysis on GuardDuty findings. It automatically collects log data from AWS resources and uses machine learning, statistical analysis, and graph theory to build interactive visualizations that help you analyze and investigate security issues.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/what-is-guardduty.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        GuardDuty Integrations
+                    </a>
+                </div>
+            </div>
+
+            <!-- Question 25 -->
+            <div class="question-card" data-question="25" data-answer="C">
+                <div class="question-header">
+                    <div class="question-number">25</div>
+                    <div class="question-text">What happens when you export GuardDuty findings to an S3 bucket?</div>
+                </div>
+                <div class="options">
+                    <label class="option">
+                        <input type="radio" name="q25" value="A">
+                        <span class="option-marker">A</span>
+                        <span class="option-text">Findings are deleted from GuardDuty after successful export to S3</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q25" value="B">
+                        <span class="option-marker">B</span>
+                        <span class="option-text">Only High and Critical severity findings are exported automatically</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q25" value="C">
+                        <span class="option-marker">C</span>
+                        <span class="option-text">Active findings are exported in near real-time, encrypted with a KMS key</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="q25" value="D">
+                        <span class="option-marker">D</span>
+                        <span class="option-text">Findings are exported once per day in a scheduled batch process</span>
+                    </label>
+                </div>
+                <button class="btn btn-reveal" onclick="revealAnswer(25)">Show Answer</button>
+                <div class="answer-section" id="answer25">
+                    <div class="answer-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Correct Answer: C
+                    </div>
+                    <p class="explanation">When you configure GuardDuty to export findings to S3, active findings are automatically exported in near real-time. The findings are encrypted using an AWS KMS key that you specify. This provides longer data retention beyond GuardDuty's 90-day limit and enables integration with SIEM tools.</p>
+                    <a href="https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_settingup.html" target="_blank" class="doc-link">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Exporting GuardDuty Findings
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-card" id="resultsCard">
+            <h2>Quiz Complete!</h2>
+            <div class="results-score" id="scorePercent">0%</div>
+            <div class="results-status" id="resultStatus">-</div>
+            <p class="results-details" id="resultDetails"></p>
+            <div class="results-breakdown">
+                <div class="breakdown-item">
+                    <div class="breakdown-value correct" id="correctCount">0</div>
+                    <div class="breakdown-label">Correct</div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-value incorrect" id="incorrectCount">0</div>
+                    <div class="breakdown-label">Incorrect</div>
+                </div>
+            </div>
+            <div class="btn-group" id="resultsButtons">
+                <button class="btn btn-primary" onclick="showReview()">📊 Review Answers</button>
+                <button class="btn btn-secondary" onclick="restartQuiz()">🔄 Restart Quiz</button>
+            </div>
+        </div>
+
+        <div class="review-section" id="reviewSection">
+            <div class="review-header">
+                <h2>Answer Review</h2>
+                <p class="results-details">Click any question to review the full answer and explanation</p>
+            </div>
+            <p class="review-hint">💡 Tip: Click on any row to see the full question and explanation in Learn mode</p>
+            <table class="review-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%">#</th>
+                        <th style="width: 50%">Question</th>
+                        <th style="width: 15%">Your Answer</th>
+                        <th style="width: 15%">Correct Answer</th>
+                        <th style="width: 10%">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reviewTableBody"></tbody>
+            </table>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="backToResults()">← Back to Results</button>
+                <button class="btn btn-primary" onclick="restartQuiz()">🔄 Restart Quiz</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = 0;
+        let userAnswers = [];
+        let shuffledQuestions = [];
+        let timerInterval = null;
+        let timeRemaining = 0;
+        let currentMode = 'learn';
+        let answersRevealed = [];
+        let inReviewMode = false, reviewedQuestions = [];
+        
+        // Extract questions from HTML
+        const questions = [];
+        document.querySelectorAll('#questions .question-card').forEach(card => {
+            const questionText = card.querySelector('.question-text').textContent.trim();
+            const correctAnswer = card.dataset.answer;
+            const options = Array.from(card.querySelectorAll('.option-text')).map(opt => opt.textContent.trim());
+            const explanationEl = card.querySelector('.explanation');
+            const explanation = explanationEl ? explanationEl.textContent.trim() : '';
+            const docLinkEl = card.querySelector('.doc-link');
+            const docLink = docLinkEl ? docLinkEl.href : '';
+            const docLinkText = docLinkEl ? docLinkEl.textContent.trim() : '';
+            
+            const correctIndex = ['A', 'B', 'C', 'D'].indexOf(correctAnswer);
+            
+            questions.push({
+                question: questionText,
+                options: options,
+                correct: correctIndex,
+                explanation: explanation,
+                docLink: docLink,
+                docLinkText: docLinkText
+            });
+        });
+        
+        const totalQuestions = questions.length;
+
+        function startQuiz(mode) {
+            inReviewMode = false;
+            reviewedQuestions = [];
+            currentMode = mode;
+            currentQuestion = 0;
+            userAnswers = new Array(questions.length).fill(null);
+            answersRevealed = new Array(questions.length).fill(false);
+            shuffledQuestions = shuffleArray(questions).map(q => shuffleQuestionOptions(q));
+            
+            document.getElementById('modeSelector').classList.add('hidden');
+            document.getElementById('quizContent').classList.remove('hidden');
+            document.getElementById('resultsCard').classList.remove('visible');
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('backToReviewBtn').style.display = 'none';
+            
+            document.getElementById('totalQ').textContent = shuffledQuestions.length;
+            
+            if (mode === 'exam') {
+                timeRemaining = shuffledQuestions.length * 150; // 2.5 min per question
+                startTimer();
+                document.getElementById('shuffleBtn').classList.add('hidden');
+            } else {
+                stopTimer();
+                document.getElementById('timer').textContent = 'Learn Mode';
+                document.getElementById('shuffleBtn').classList.remove('hidden');
+            }
+            renderQuestion();
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function startTimer() {
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+                if (timeRemaining <= 0) {
+                    stopTimer();
+                    alert('⏰ Time is up! Your quiz will be submitted automatically.');
+                    showResults();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const timerEl = document.getElementById('timer');
+            timerEl.textContent = formatTime(timeRemaining);
+            
+            const totalTime = shuffledQuestions.length * 150;
+            const percentRemaining = (timeRemaining / totalTime) * 100;
+            
+            timerEl.classList.remove('warning', 'danger');
+            if (percentRemaining <= 10) {
+                timerEl.classList.add('danger');
+            } else if (percentRemaining <= 25) {
+                timerEl.classList.add('warning');
+            }
+        }
+
+        // Shuffle functions
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        function shuffleQuestionOptions(question) {
+            const indices = [0, 1, 2, 3];
+            const shuffledIndices = shuffleArray(indices);
+            const shuffledOptions = shuffledIndices.map(i => question.options[i]);
+            const newCorrectIndex = shuffledIndices.indexOf(question.correct);
+            
+            return {
+                ...question,
+                options: shuffledOptions,
+                correct: newCorrectIndex
+            };
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+
+        function showResults() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            let correct = 0;
+            let answered = 0;
+            
+            for (let i = 0; i < shuffledQuestions.length; i++) {
+                if (userAnswers[i] !== null && userAnswers[i] !== -1) {
+                    answered++;
+                    if (userAnswers[i] === shuffledQuestions[i].correct) {
+                        correct++;
+                    }
+                }
+            }
+            
+            const total = shuffledQuestions.length;
+            const percentage = Math.round((correct / total) * 100);
+            const passed = percentage >= 80;
+            
+            // Hide quiz content and show results
+            document.getElementById('quizContent').classList.add('hidden');
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('resultsCard').classList.add('visible');
+            
+            const scoreEl = document.getElementById('scorePercent');
+            scoreEl.textContent = percentage + '%';
+            scoreEl.className = 'results-score ' + (passed ? 'pass' : 'fail');
+            
+            const statusEl = document.getElementById('resultStatus');
+            statusEl.textContent = passed ? '🎉 PASSED!' : '📚 Keep Studying';
+            statusEl.className = 'results-status ' + (passed ? 'pass' : 'fail');
+            
+            document.getElementById('resultDetails').textContent = 
+                `You answered ${correct} out of ${total} questions correctly. ${passed ? 'Great job!' : 'You need 80% to pass.'}`;
+            
+            document.getElementById('correctCount').textContent = correct;
+            document.getElementById('incorrectCount').textContent = total - correct;
+            
+            document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function restartQuiz() {
+            // Reset state
+            currentQuestion = 0;
+            userAnswers = new Array(questions.length).fill(null);
+            answersRevealed = new Array(questions.length).fill(false);
+            shuffledQuestions = shuffleArray(questions).map(q => shuffleQuestionOptions(q));
+            
+            // Hide results and show mode selector
+            document.getElementById('resultsCard').classList.remove('visible');
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('backToReviewBtn').style.display = 'none';
+            document.getElementById('quizContent').classList.add('hidden');
+            document.getElementById('modeSelector').classList.remove('hidden');
+            
+            // Stop timer if running
+            stopTimer();
+            inReviewMode = false;
+            reviewedQuestions = [];
+        }
+
+        function showReview() {
+            const letters = ['A','B','C','D'];
+            const tbody = document.getElementById('reviewTableBody');
+            tbody.innerHTML = shuffledQuestions.map((q, i) => {
+                const userAns = userAnswers[i];
+                const isCorrect = userAns === q.correct;
+                const userLetter = userAns !== null && userAns >= 0 ? letters[userAns] : 'No Answer';
+                const correctLetter = letters[q.correct];
+                const statusIcon = isCorrect ? '✓' : '✗';
+                const statusClass = isCorrect ? 'correct' : 'incorrect';
+                const qText = q.question.length > 120 ? q.question.substring(0, 120) + '...' : q.question;
+                const reviewedClass = reviewedQuestions.includes(i) ? 'reviewed' : '';
+                return `<tr class="${reviewedClass}" onclick="reviewQuestion(${i})"><td class="review-q-num">${i + 1}</td><td class="review-q-text">${qText}</td><td class="review-answer ${userAns === q.correct ? 'correct' : 'incorrect'}">${userLetter}</td><td class="review-answer correct">${correctLetter}</td><td class="review-status ${statusClass}">${statusIcon}</td></tr>`;
+            }).join('');
+            document.getElementById('resultsCard').classList.remove('visible');
+            document.getElementById('reviewSection').classList.add('show');
+            inReviewMode = true;
+        }
+
+        function reviewQuestion(qIndex) {
+            if (!reviewedQuestions.includes(qIndex)) {
+                reviewedQuestions.push(qIndex);
+            }
+            currentMode = 'learn';
+            currentQuestion = qIndex;
+            answersRevealed[qIndex] = true;
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('quizContent').classList.remove('hidden');
+            document.getElementById('timer').textContent = 'Learn Mode';
+            document.getElementById('shuffleBtn').style.display = 'none';
+            document.getElementById('backToReviewBtn').style.display = 'inline-block';
+            if (timerInterval) stopTimer();
+            renderQuestion();
+        }
+
+        function backToReview() {
+            document.getElementById('quizContent').classList.add('hidden');
+            showReview();
+        }
+
+        function backToResults() {
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('resultsCard').classList.add('visible');
+            inReviewMode = false;
+        }
+
+
+        function renderQuestion() {
+            if (shuffledQuestions.length === 0) return;
+            
+            const q = shuffledQuestions[currentQuestion];
+            const container = document.getElementById('questionsContainer');
+            
+            const letters = ['A', 'B', 'C', 'D'];
+            const userAnswer = userAnswers[currentQuestion];
+            const revealed = answersRevealed[currentQuestion];
+            
+            let optionsHtml = q.options.map((opt, idx) => {
+                let classes = 'option';
+                if (currentMode === 'learn' && revealed) {
+                    classes += ' disabled';
+                    if (idx === q.correct) classes += ' correct';
+                    else if (idx === userAnswer && userAnswer !== q.correct) classes += ' incorrect';
+                } else if (userAnswer === idx) {
+                    classes += ' selected';
+                }
+                
+                return `
+                    <div class="${classes}" onclick="selectOption(${idx})">
+                        <span class="option-marker">${letters[idx]}</span>
+                        <span class="option-text">${opt}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            let explanationHtml = '';
+            if (currentMode === 'learn' && revealed) {
+                const isCorrect = userAnswer === q.correct;
+                explanationHtml = `
+                    <div class="explanation show">
+                        <div class="answer-header">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Correct Answer: ${letters[q.correct]}
+                        </div>
+                        <p class="explanation-text">${q.explanation}</p>
+                        ${q.docLink ? `<a href="${q.docLink}" target="_blank" class="doc-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>${q.docLinkText || 'Documentation'}</a>` : ''}
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = `
+                <div class="question-card">
+                    <div class="question-header">
+                        <span class="question-number">Question ${currentQuestion + 1}</span>
+                        <span class="question-domain">GuardDuty</span>
+                    </div>
+                    <p class="question-text">${q.question}</p>
+                    <div class="options">${optionsHtml}</div>
+                    ${currentMode === 'learn' && !revealed ? 
+                        '<button class="btn btn-primary" style="margin-top: 1rem; width: 100%;" onclick="revealAnswer()">Show Answer</button>' : ''}
+                    ${explanationHtml}
+                </div>
+            `;
+            
+            document.getElementById('currentQ').textContent = currentQuestion + 1;
+            document.getElementById('progressFill').style.width = 
+                `${((currentQuestion + 1) / shuffledQuestions.length) * 100}%`;
+            
+            document.getElementById('prevBtn').disabled = currentQuestion === 0;
+            
+            const nextBtn = document.getElementById('nextBtn');
+            if (currentQuestion === shuffledQuestions.length - 1) {
+                nextBtn.textContent = currentMode === 'exam' ? 'Submit Quiz' : 'See Results';
+            } else {
+                nextBtn.textContent = 'Next →';
+            }
+        }
+
+        function selectOption(idx) {
+            if (currentMode === 'learn' && answersRevealed[currentQuestion]) return;
+            
+            userAnswers[currentQuestion] = idx;
+            renderQuestion();
+        }
+
+        function revealAnswer() {
+            if (userAnswers[currentQuestion] === null) {
+                userAnswers[currentQuestion] = -1; // Mark as revealed but not answered
+            }
+            answersRevealed[currentQuestion] = true;
+            renderQuestion();
+        }
+
+        function navigate(direction) {
+            if (direction === 1 && currentQuestion === shuffledQuestions.length - 1) {
+                showResults();
+                return;
+            }
+            
+            currentQuestion += direction;
+            currentQuestion = Math.max(0, Math.min(currentQuestion, shuffledQuestions.length - 1));
+            renderQuestion();
+        }
+
+        function shuffleQuiz() {
+            if (currentMode !== 'learn') return;
+            
+            currentQuestion = 0;
+            userAnswers = new Array(questions.length).fill(null);
+            answersRevealed = new Array(questions.length).fill(false);
+            shuffledQuestions = shuffleArray(questions).map(q => shuffleQuestionOptions(q));
+            renderQuestion();
+            
+            const notice = document.getElementById('shuffleNotice');
+            notice.style.animation = 'none';
+            notice.offsetHeight;
+            notice.style.animation = 'fadeIn 0.5s ease';
+        }
+    </script>
+</body>
+</html>

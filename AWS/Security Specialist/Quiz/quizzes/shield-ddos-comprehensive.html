@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Shield & DDoS Protection Quiz | AWS Security Specialty (SCS-C03)</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #141b2d;
+            --bg-tertiary: #1a2236;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #60a5fa;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #eab308;
+            --info: #3b82f6;
+            --border: #2d3a52;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.6; min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        header { text-align: center; margin-bottom: 2rem; padding: 2rem; background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%); border-radius: 16px; border: 1px solid var(--border); }
+        .badge { display: inline-block; background: var(--accent-primary); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 1rem; text-transform: uppercase; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: var(--text-secondary); font-size: 1rem; }
+        .stats-bar { display: flex; justify-content: center; gap: 2rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+        .stat { text-align: center; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
+        .mode-selector { display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; }
+        .mode-btn { padding: 0.75rem 2rem; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); border-radius: 8px; cursor: pointer; font-size: 1rem; transition: all 0.3s ease; }
+        .mode-btn:hover { border-color: var(--accent-primary); background: var(--bg-tertiary); }
+        .mode-btn.active { border-color: var(--accent-primary); background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(96, 165, 250, 0.1)); }
+        .progress-container { background: var(--bg-secondary); border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .progress-text { font-size: 0.875rem; color: var(--text-secondary); }
+        .timer { font-size: 1.25rem; font-weight: 600; color: var(--accent-primary); font-family: 'Consolas', monospace; }
+        .timer.warning { color: var(--warning); animation: pulse 1s infinite; }
+        .timer.danger { color: var(--error); animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .progress-bar { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius: 4px; transition: width 0.3s ease; }
+        .question-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; margin-bottom: 1.5rem; border: 1px solid var(--border); }
+        .question-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+        .question-number { background: var(--bg-tertiary); color: var(--accent-primary); padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; }
+        .question-domain { font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px; }
+        .question-text { font-size: 1.125rem; margin-bottom: 1.5rem; line-height: 1.7; }
+        .options { display: flex; flex-direction: column; gap: 0.75rem; }
+        .option { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-tertiary); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.2s ease; }
+        .option:hover:not(.disabled) { border-color: var(--accent-primary); background: rgba(59, 130, 246, 0.1); }
+        .option.selected { border-color: var(--accent-primary); border-width: 3px; background: rgba(59, 130, 246, 0.2); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25), inset 0 0 12px rgba(59, 130, 246, 0.1); }
+        .option.correct { border-color: var(--success); background: rgba(34, 197, 94, 0.15); }
+        .option.incorrect { border-color: var(--error); background: rgba(239, 68, 68, 0.15); }
+        .option.disabled { cursor: default; }
+        .option-marker { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.875rem; flex-shrink: 0; transition: all 0.2s ease; }
+        .option.selected .option-marker { border-color: var(--accent-primary); background: var(--accent-primary); color: white; }
+        .option.correct .option-marker { border-color: var(--success); background: var(--success); color: white; }
+        .option.incorrect .option-marker { border-color: var(--error); background: var(--error); color: white; }
+        .option-text { flex: 1; padding-top: 2px; }
+        .explanation { margin-top: 1.5rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; border-left: 4px solid var(--info); display: none; }
+        .explanation.show { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .explanation-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--info); }
+        .answer-header { font-weight: 600; color: var(--success); margin-bottom: 0.5rem; }
+        .explanation-text { color: var(--text-secondary); margin-bottom: 1rem; }
+        .doc-link { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--accent-primary); text-decoration: none; font-size: 0.875rem; padding: 0.5rem 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 6px; transition: background 0.2s ease; }
+        .doc-link:hover { background: rgba(59, 130, 246, 0.2); }
+        .btn-container { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--accent-primary); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .results-card { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; text-align: center; border: 1px solid var(--border); display: none; }
+        .results-card.show { display: block; animation: fadeIn 0.5s ease; }
+        .results-score { font-size: 4rem; font-weight: 700; margin: 1rem 0; }
+        .results-score.pass { color: var(--success); }
+        .results-score.fail { color: var(--error); }
+        .results-status { font-size: 1.5rem; margin-bottom: 1rem; }
+        .results-status.pass { color: var(--success); }
+        .results-status.fail { color: var(--error); }
+        .results-details { color: var(--text-secondary); margin-bottom: 2rem; }
+        .results-breakdown { display: flex; justify-content: center; gap: 3rem; margin-bottom: 2rem; padding: 1.5rem; background: var(--bg-tertiary); border-radius: 10px; }
+        .breakdown-item { text-align: center; }
+        .breakdown-value { font-size: 2rem; font-weight: 700; }
+        .breakdown-value.correct { color: var(--success); }
+        .breakdown-value.incorrect { color: var(--error); }
+        .breakdown-label { font-size: 0.875rem; color: var(--text-secondary); }
+        .hidden { display: none !important; }
+        .shuffle-notice { text-align: center; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; margin-bottom: 1.5rem; color: var(--accent-secondary); font-size: 0.875rem; }
+        .btn-group { display: flex; gap: 1rem; justify-content: center; margin-top: 1rem; }
+        .review-section { background: var(--bg-secondary); border-radius: 16px; padding: 2rem; border: 1px solid var(--border); display: none; }
+        .review-section.show { display: block; animation: fadeIn 0.5s ease; }
+        .review-header { text-align: center; margin-bottom: 2rem; }
+        .review-hint { text-align: center; color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem; }
+        .review-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        .review-table th { background: var(--bg-tertiary); color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; text-transform: uppercase; padding: 1rem; text-align: left; border-bottom: 2px solid var(--border); }
+        .review-table td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        .review-table tbody tr { cursor: pointer; transition: all 0.2s ease; }
+        .review-table tbody tr:hover { background: rgba(59, 130, 246, 0.1); transform: translateX(4px); }
+        .review-table tbody tr.reviewed { background: rgba(59, 130, 246, 0.25); border-left: 6px solid var(--accent-primary); box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.15); }
+        .review-table tbody tr.reviewed:hover { background: rgba(59, 130, 246, 0.3); }
+        .review-table tbody tr.reviewed .review-q-num { color: var(--accent-secondary); font-weight: 800; }
+        .review-table tbody tr.reviewed .review-q-num::before { content: "✓ "; color: var(--accent-primary); font-size: 1rem; }
+        .review-q-num { font-weight: 700; color: var(--accent-primary); white-space: nowrap; }
+        .review-q-text { color: var(--text-primary); line-height: 1.6; }
+        .review-answer { font-weight: 600; }
+        .review-answer.correct { color: var(--success); }
+        .review-answer.incorrect { color: var(--error); }
+        .review-status { text-align: center; font-size: 1.25rem; }
+        @media (max-width: 640px) {
+            .container { padding: 1rem; }
+            h1 { font-size: 1.5rem; }
+            .stats-bar { gap: 1rem; }
+            .mode-selector { flex-direction: column; }
+            .btn-container { flex-direction: column; }
+            .results-breakdown { flex-direction: column; gap: 1.5rem; }
+            .btn-group { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="badge">Domain 3: Infrastructure Security</span>
+            <h1>AWS Shield & DDoS Protection</h1>
+            <p class="subtitle">Comprehensive Quiz for AWS Security Specialty (SCS-C03)</p>
+            <div class="stats-bar">
+                <div class="stat">
+                    <div class="stat-value">18</div>
+                    <div class="stat-label">Questions</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">80%</div>
+                    <div class="stat-label">Pass Score</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">45:00</div>
+                    <div class="stat-label">Exam Time</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="mode-selector" id="modeSelector">
+            <button class="mode-btn" onclick="startQuiz('learn')">📚 Learn Mode</button>
+            <button class="mode-btn" onclick="startQuiz('exam')">⏱️ Exam Mode</button>
+        </div>
+
+        <div id="quizContent" class="hidden">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span class="progress-text">Question <span id="currentQ">1</span> of <span id="totalQ">18</span></span>
+                    <span class="timer" id="timer">45:00</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="shuffle-notice" id="shuffleNotice">🔀 Questions and options have been randomized</div>
+            <div id="questionsContainer"></div>
+            <div class="btn-container">
+                <button class="btn btn-secondary" id="backToReviewBtn" onclick="backToReview()" style="display: none;">← Back to Review</button>
+                <button class="btn btn-secondary" id="prevBtn" onclick="navigate(-1)" disabled>← Previous</button>
+                <button class="btn btn-secondary" id="shuffleBtn" onclick="shuffleQuiz()">🔀 Shuffle</button>
+                <button class="btn btn-primary" id="nextBtn" onclick="navigate(1)">Next →</button>
+            </div>
+        </div>
+
+        <div class="results-card" id="resultsCard">
+            <h2>Quiz Complete!</h2>
+            <div class="results-score" id="scorePercent">0%</div>
+            <div class="results-status" id="resultStatus">-</div>
+            <p class="results-details" id="resultDetails"></p>
+            <div class="results-breakdown">
+                <div class="breakdown-item">
+                    <div class="breakdown-value correct" id="correctCount">0</div>
+                    <div class="breakdown-label">Correct</div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-value incorrect" id="incorrectCount">0</div>
+                    <div class="breakdown-label">Incorrect</div>
+                </div>
+            </div>
+            <div class="btn-group" id="resultsButtons">
+                <button class="btn btn-primary" onclick="showReview()">📊 Review Answers</button>
+                <button class="btn btn-secondary" onclick="restartQuiz()">🔄 Restart Quiz</button>
+            </div>
+        </div>
+        <div class="review-section" id="reviewSection">
+            <div class="review-header">
+                <h2>Answer Review</h2>
+                <p class="results-details">Click any question to review the full answer and explanation</p>
+            </div>
+            <p class="review-hint">💡 Tip: Click on any row to see the full question and explanation in Learn mode</p>
+            <table class="review-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%">#</th>
+                        <th style="width: 50%">Question</th>
+                        <th style="width: 15%">Your Answer</th>
+                        <th style="width: 15%">Correct Answer</th>
+                        <th style="width: 15%">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reviewTableBody"></tbody>
+            </table>
+            <div class="review-status">
+                <p class="results-details">Reviewed: <span id="reviewedCount">0</span> / <span id="totalReviewCount">0</span> questions</p>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="backToResults()">← Back to Results</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            {
+                id: 1,
+                question: "What is the main difference between AWS Shield Standard and Shield Advanced?",
+                options: [
+                    "Shield Standard protects against layer 3/4 attacks while Advanced adds layer 7 detection only, but both services use the same underlying detection algorithms and mitigation techniques at AWS edge locations",
+                    "Shield Advanced provides layer 7 DDoS protection, 24/7 DRT access, and cost protection for scaling charges during attacks",
+                    "Shield Standard uses machine learning algorithms to detect attack patterns while Advanced relies on rule-based detection systems that require manual configuration and tuning by security teams",
+                    "Shield Advanced requires mandatory WAF integration and cannot function independently, while Standard works as a standalone service without any additional AWS service dependencies or configuration requirements"
+                ],
+                correct: 1,
+                explanation: "Shield Advanced provides enhanced DDoS protection including application layer (layer 7) attack detection, 24/7 access to AWS DDoS Response Team (DRT), cost protection for scaling during attacks, and advanced metrics. Shield Standard provides automatic layer 3/4 protection at no extra cost.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-overview.html"
+            },
+            {
+                id: 2,
+                question: "Which AWS resources can be protected by AWS Shield Advanced?",
+                options: [
+                    "EC2 instances with public IP addresses, RDS databases configured for public access, and S3 buckets that have public read or write permissions enabled through bucket policies or ACLs",
+                    "CloudFront distributions, Route 53 hosted zones, Global Accelerator accelerators, Application Load Balancers, Classic Load Balancers, and Elastic IPs",
+                    "API Gateway REST and HTTP APIs, Lambda functions with public function URLs or API Gateway integrations, and AppSync GraphQL APIs that are accessible over the internet",
+                    "Network Load Balancers with internet-facing listeners, NAT Gateways in public subnets, and Transit Gateway attachments that route traffic to internet gateways or virtual private gateways"
+                ],
+                correct: 1,
+                explanation: "Shield Advanced can protect Amazon CloudFront distributions, Amazon Route 53 hosted zones, AWS Global Accelerator accelerators, Application Load Balancers, Classic Load Balancers (ELB), and Elastic IP addresses attached to EC2 instances or Network Load Balancers.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-advanced-summary-protected-resources.html"
+            },
+            {
+                id: 3,
+                question: "What is the AWS DDoS Response Team (DRT)?",
+                options: [
+                    "An automated response system that uses machine learning algorithms to automatically detect, analyze, and block DDoS attacks in real-time without requiring any human intervention or manual configuration",
+                    "A team of AWS security experts available 24/7 to help during DDoS attacks by analyzing patterns, creating custom mitigations, and providing technical support",
+                    "A third-party security service provider that AWS contracts with to provide specialized DDoS mitigation services and incident response capabilities for enterprise customers",
+                    "A monitoring dashboard and analytics tool that provides real-time DDoS attack metrics, historical attack data visualization, and automated alerting capabilities for security teams"
+                ],
+                correct: 1,
+                explanation: "The AWS DDoS Response Team (DRT) is a group of AWS security experts available to Shield Advanced customers 24/7. They can help during active DDoS attacks by analyzing patterns, creating custom mitigations, and providing technical support. They require prior authorization to access your resources.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-srt.html"
+            },
+            {
+                id: 4,
+                question: "What is the monthly cost for AWS Shield Advanced subscription?",
+                options: [
+                    "Free for all AWS customers as part of the standard AWS service offering, with no additional charges for DDoS protection capabilities regardless of traffic volume or attack frequency",
+                    "$1,000 per month base subscription fee, with additional per-GB charges for data transfer and attack mitigation services that scale based on the volume of protected traffic",
+                    "$3,000 per month plus data transfer fees, with the subscription covering all accounts in an AWS Organization",
+                    "$5,000 per month with no additional fees for data transfer, attack mitigation, or any other services, providing unlimited protection coverage across all AWS accounts in your organization"
+                ],
+                correct: 2,
+                explanation: "AWS Shield Advanced has a monthly subscription fee of $3,000, plus additional fees for data transfer out (DTO) from protected resources. The subscription is per AWS Organization, covering all accounts. Shield Standard is free and automatic for all AWS customers.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/shield-chapter.html"
+            },
+            {
+                id: 5,
+                question: "What is 'cost protection' in AWS Shield Advanced?",
+                options: [
+                    "Automatic budget alerts and spending notifications that are triggered when DDoS-related AWS service charges exceed pre-configured spending thresholds or budget limits that you define in AWS Budgets",
+                    "Service credits for scaling charges like EC2, CloudFront data transfer, and Route 53 queries during DDoS attacks, with credits requested within 15 days of the billing period",
+                    "Reserved capacity pricing discounts and cost optimization features that automatically apply to AWS resources that are frequently targeted by DDoS attacks, reducing your overall infrastructure costs",
+                    "Waived data transfer fees and automatic cost reductions for all network traffic that is analyzed, filtered, or processed by Shield's DDoS detection and mitigation systems at AWS edge locations"
+                ],
+                correct: 1,
+                explanation: "Cost protection provides service credits if your AWS bill increases due to scaling during a DDoS attack. This covers charges from services like EC2, CloudFront data transfer, and Route 53 queries. You must request credits within 15 days of the billing period.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-advanced-summary-capabilities.html"
+            },
+            {
+                id: 6,
+                question: "Which layer of the OSI model do network volumetric DDoS attacks target?",
+                options: [
+                    "Layer 1 (Physical), where attacks target the physical network infrastructure including cables, switches, and network interface cards to disrupt connectivity at the hardware level",
+                    "Layer 3 (Network), where attacks attempt to saturate network bandwidth with large amounts of traffic such as UDP floods and ICMP floods",
+                    "Layer 7 (Application), where attacks send high volumes of HTTP/HTTPS requests to overwhelm application servers, databases, and application logic processing capabilities",
+                    "Layer 5 (Session), where attacks exploit session management mechanisms and connection state tracking to exhaust server resources allocated for maintaining active user sessions"
+                ],
+                correct: 1,
+                explanation: "Network volumetric attacks target Layer 3 (Network layer) of the OSI model. They attempt to saturate network bandwidth with large amounts of traffic. Examples include UDP floods and ICMP floods. Shield Standard automatically protects against these attacks.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-overview.html"
+            },
+            {
+                id: 7,
+                question: "What is a TCP SYN flood attack?",
+                options: [
+                    "An application layer attack targeting HTTP endpoints by sending massive volumes of legitimate-looking HTTP GET and POST requests to overwhelm web servers, application logic, and backend database connections",
+                    "A Layer 4 protocol attack that exploits the TCP handshake by sending many SYN packets without completing the handshake, exhausting server resources allocated for tracking connection states",
+                    "A DNS amplification attack that exploits open DNS resolvers to generate large volumes of DNS response traffic directed at a target, using small DNS queries to trigger much larger responses",
+                    "A brute force login attempt that systematically tries different username and password combinations against authentication endpoints to gain unauthorized access to user accounts"
+                ],
+                correct: 1,
+                explanation: "A TCP SYN flood is a Layer 4 (Transport layer) protocol attack. It exploits the TCP handshake by sending many SYN packets without completing the handshake, exhausting server resources allocated for tracking connection states. Shield protects against this attack type.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/types-of-ddos-attacks.html"
+            },
+            {
+                id: 8,
+                question: "How does AWS Shield detect DDoS attacks on CloudFront and Route 53?",
+                options: [
+                    "Using VPC Flow Logs analysis that processes network traffic logs from VPCs, subnets, and network interfaces to identify attack patterns through post-processing and batch analysis of historical traffic data",
+                    "Through continuous network flow monitoring at AWS edge locations, with traffic inspected inline and mitigations applied automatically when attack patterns are detected",
+                    "By analyzing CloudWatch metrics only, including request rates, error rates, and latency metrics that are collected and aggregated over time to detect anomalies and attack signatures",
+                    "Through customer-provided threat intelligence feeds, IP reputation lists, and custom attack signatures that are manually configured and uploaded by security teams through the Shield console"
+                ],
+                correct: 1,
+                explanation: "For CloudFront and Route 53, Shield uses continuous network flow monitoring at AWS edge locations. Traffic is inspected inline, and mitigations are applied automatically and immediately when attack patterns are detected, without routing changes.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-event-mitigation-logic-continuous-inspection.html"
+            },
+            {
+                id: 9,
+                question: "What is automatic application layer DDoS mitigation in Shield Advanced?",
+                options: [
+                    "Automatic scaling of EC2 instances, Auto Scaling groups, and ECS services during attacks to increase capacity and handle increased traffic volumes without manual intervention or pre-configured scaling policies",
+                    "Automatic creation, evaluation, and deployment of AWS WAF rules to mitigate layer 7 attacks when Shield Advanced identifies attack patterns and creates custom rules to block malicious traffic",
+                    "Automatic DNS failover during attacks that switches traffic from primary to secondary Route 53 health-checked endpoints or CloudFront origins when attack-related health degradation is detected",
+                    "Automatic CDN cache invalidation that clears cached content from CloudFront edge locations to ensure fresh content delivery and prevent serving stale or potentially compromised cached responses during attacks"
+                ],
+                correct: 1,
+                explanation: "Automatic application layer DDoS mitigation allows Shield Advanced to automatically create, evaluate, and deploy AWS WAF rules to mitigate layer 7 attacks. When enabled, Shield Advanced identifies attack patterns and creates custom WAF rules to block malicious traffic.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response.html"
+            },
+            {
+                id: 10,
+                question: "What is health-based detection in AWS Shield Advanced?",
+                options: [
+                    "Monitoring application response times, error rates, and latency metrics through CloudWatch to detect performance degradation and automatically trigger DDoS mitigation responses when thresholds are exceeded",
+                    "Using Route 53 health checks associated with protected resources to improve detection accuracy by monitoring health status and correlating it with traffic patterns, increasing detection sensitivity when health degrades during increased traffic",
+                    "Analyzing AWS Health events, service health dashboards, and infrastructure status updates to correlate known infrastructure issues, service disruptions, and maintenance windows with detected attack patterns",
+                    "Checking target group health status through Application Load Balancer health checks to automatically adjust Shield protection rules, sensitivity thresholds, and mitigation strategies based on backend resource availability"
+                ],
+                correct: 1,
+                explanation: "Health-based detection uses Route 53 health checks associated with protected resources to improve detection accuracy. Shield Advanced monitors the health status and correlates it with traffic patterns. When health degrades during increased traffic, detection sensitivity increases.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-overview.html"
+            },
+            {
+                id: 11,
+                question: "Which AWS service is included at no additional cost with Shield Advanced?",
+                options: [
+                    "Amazon GuardDuty, including threat detection capabilities, security findings, and threat intelligence feeds that help identify malicious activity and unauthorized access attempts across your AWS accounts",
+                    "AWS WAF, including web ACLs, rules, and rule groups for resources protected by Shield Advanced, excluding Bot Control and Fraud Control which have separate charges",
+                    "AWS Inspector, including automated security assessments, vulnerability scanning, and compliance checks that evaluate your EC2 instances, container images, and Lambda functions for security best practices",
+                    "Amazon Macie, including sensitive data discovery, data classification, and automated alerts for data security and privacy compliance violations across your S3 buckets and data storage resources"
+                ],
+                correct: 1,
+                explanation: "AWS WAF is included at no additional cost for resources protected by Shield Advanced. This includes WAF web ACLs, rules, and rule groups (excluding Bot Control and Fraud Control). You only pay for Shield Advanced subscription and data transfer.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-advanced-summary-capabilities.html"
+            },
+            {
+                id: 12,
+                question: "How can you view DDoS attack information in Shield Advanced?",
+                options: [
+                    "Only through AWS Support tickets that must be opened manually, with attack details and mitigation recommendations provided by support engineers after reviewing your account's security logs and traffic patterns",
+                    "Through the Shield console for attack summaries and history, CloudWatch metrics for real-time monitoring, and AWS Shield network security director for security posture evaluation and resource discovery",
+                    "Only through AWS CLI commands and API calls that require programmatic access, with no graphical user interface or console-based visibility into attack events and mitigation activities",
+                    "Only through third-party monitoring tools and security information and event management (SIEM) platforms that integrate with AWS CloudWatch Logs and CloudTrail to aggregate and analyze attack data"
+                ],
+                correct: 1,
+                explanation: "Shield Advanced provides visibility through multiple channels: the Shield console for attack summaries and history, CloudWatch metrics for real-time monitoring, and AWS Shield network security director for security posture evaluation and resource discovery.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/shield-chapter.html"
+            },
+            {
+                id: 13,
+                question: "What is the Shield network security director?",
+                options: [
+                    "An IAM role and permission set that provides administrative access to Shield management functions, allowing security teams to configure protection settings, manage DRT access, and modify Shield Advanced policies across AWS accounts",
+                    "A tool to discover AWS resources, evaluate their security configurations, identify gaps in DDoS protection, and provide recommendations for improving protection across your organization",
+                    "A VPN service and secure network connection solution that encrypts traffic between your on-premises infrastructure and AWS resources, providing additional security layers for Shield-protected applications",
+                    "A load balancer and traffic distribution service specifically designed for Shield-protected resources, with built-in DDoS mitigation capabilities and automatic failover to healthy endpoints during attacks"
+                ],
+                correct: 1,
+                explanation: "AWS Shield network security director helps you discover AWS resources, evaluate their security configurations, and identify gaps in DDoS protection. It provides recommendations for improving protection and helps manage Shield Advanced across your organization.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/what-is-aws-waf.html"
+            },
+            {
+                id: 14,
+                question: "What is a common characteristic of application layer (Layer 7) DDoS attacks?",
+                options: [
+                    "They generate massive amounts of network bandwidth and consume large volumes of network capacity by flooding target systems with high-volume traffic streams that saturate available network links and infrastructure resources",
+                    "They send valid requests that appear legitimate but overwhelm the application, such as HTTP floods targeting login pages or search functions, making them harder to detect because each request appears normal individually",
+                    "They exploit TCP protocol vulnerabilities and connection state management weaknesses to exhaust server resources, memory, and processing capabilities through protocol-level manipulation and resource exhaustion techniques",
+                    "They target physical infrastructure components including network switches, routers, cables, and hardware devices to cause physical damage or disruption to the underlying network connectivity and data transmission capabilities"
+                ],
+                correct: 1,
+                explanation: "Layer 7 attacks use valid, seemingly legitimate requests to overwhelm application resources. Examples include HTTP floods targeting login pages or search functions. These attacks are harder to detect because each request appears normal individually.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-overview.html"
+            },
+            {
+                id: 15,
+                question: "How does AWS Firewall Manager help with Shield Advanced?",
+                options: [
+                    "It replaces Shield Advanced protection by providing an alternative DDoS mitigation service with different detection algorithms, pricing models, and protection capabilities that operate independently of Shield services",
+                    "It enables centralized management of Shield Advanced protections across all accounts in your AWS Organization, allowing you to create policies that automatically protect new resources and ensure consistent protection",
+                    "It provides additional DDoS detection capabilities and enhanced attack pattern recognition algorithms that complement Shield Advanced's existing detection mechanisms with supplementary monitoring and analysis features",
+                    "It manages Shield Standard only, providing centralized configuration and policy management for the free Shield Standard service without requiring or supporting Shield Advanced subscription features"
+                ],
+                correct: 1,
+                explanation: "AWS Firewall Manager allows you to centrally manage Shield Advanced protections across all accounts in your AWS Organization. You can create Shield Advanced policies to automatically protect new resources as they're created and ensure consistent protection.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/shield-policies.html"
+            },
+            {
+                id: 16,
+                question: "What authorization does the DRT need to help during an attack?",
+                options: [
+                    "No authorization is needed, as the DRT has automatic access to all AWS accounts and resources through AWS's internal security infrastructure and service-level permissions that enable immediate response capabilities",
+                    "Authorization through an IAM role that allows access to your WAF and Shield configurations, typically using a service-linked role, enabling the DRT to analyze attacks and create custom mitigation rules on your behalf",
+                    "Root account credentials and full administrative access to your AWS account, including the ability to modify IAM policies, create and delete resources, and access all service configurations without restrictions",
+                    "VPN access to your on-premises network infrastructure, allowing the DRT to connect directly to your private data centers and internal network resources to coordinate mitigation efforts across hybrid cloud environments"
+                ],
+                correct: 1,
+                explanation: "You must grant the DRT access through an IAM role that allows them to access your WAF and Shield configurations. This is typically done using the service-linked role. The DRT uses this access to analyze attacks and create custom mitigation rules on your behalf.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-srt.html"
+            },
+            {
+                id: 17,
+                question: "Which DDoS mitigation technique does Shield use for CloudFront distributions?",
+                options: [
+                    "Blackholing all traffic by completely blocking and dropping all incoming requests to CloudFront distributions during detected attacks, preventing any traffic from reaching origin servers regardless of whether it is legitimate or malicious",
+                    "Inline traffic inspection at AWS edge locations where attack traffic is filtered automatically before it reaches your origin, with continuous monitoring and mitigation happening without delay or routing changes",
+                    "Manual traffic filtering by support staff who analyze attack patterns, review traffic logs, and create custom filtering rules through AWS Support tickets and direct intervention during active DDoS incidents",
+                    "DNS-based traffic redirection that automatically changes DNS records and routes traffic away from attacked CloudFront distributions to alternative endpoints or backup infrastructure during detected attack events"
+                ],
+                correct: 1,
+                explanation: "For CloudFront, Shield provides inline traffic inspection at AWS edge locations. Attack traffic is filtered automatically before it reaches your origin. This continuous monitoring and mitigation happens without any delay or routing changes needed.",
+                docLink: "https://docs.aws.amazon.com/waf/latest/developerguide/ddos-event-mitigation-logic-continuous-inspection.html"
+            },
+            {
+                id: 18,
+                question: "What best practice improves DDoS resilience for web applications?",
+                options: [
+                    "Hosting everything on a single large EC2 instance with maximum CPU, memory, and network capacity to handle all traffic on a single server, eliminating the complexity of distributed architectures and load balancing",
+                    "Using CloudFront to absorb DDoS traffic at edge locations, implementing WAF for application layer protection, enabling Shield Advanced for enhanced detection and response, and using Auto Scaling to handle traffic spikes",
+                    "Disabling all caching mechanisms including CloudFront caching, application-level caching, and database query caching to ensure all requests are processed in real-time without serving potentially stale or cached content",
+                    "Using only private IP addresses and VPC endpoints for all resources, eliminating public internet exposure and requiring all traffic to route through VPN connections or AWS Direct Connect for enhanced network security isolation"
+                ],
+                correct: 1,
+                explanation: "Best practices include using CloudFront to absorb DDoS traffic at edge locations, implementing WAF for application layer protection, enabling Shield Advanced for enhanced detection and response, using Auto Scaling to handle traffic spikes, and architecting for horizontal scalability.",
+                docLink: "https://docs.aws.amazon.com/whitepapers/latest/aws-best-practices-ddos-resiliency/mitigation-techniques.html"
+            }
+        ];
+
+        let currentMode = 'learn', answersRevealed = [];
+        let currentQuestion = 0;
+        let userAnswers = [];
+        let shuffledQuestions = [];
+        let timerInterval = null;
+        let timeRemaining = 0;
+        let inReviewMode = false;
+        let reviewedQuestions = [];
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        function shuffleQuestionOptions(question) {
+            const optionIndices = [0, 1, 2, 3];
+            const shuffledIndices = shuffleArray(optionIndices);
+            const newQuestion = { ...question };
+            newQuestion.options = shuffledIndices.map(i => question.options[i]);
+            newQuestion.correct = shuffledIndices.indexOf(question.correct);
+            newQuestion.shuffleMap = shuffledIndices;
+            return newQuestion;
+        }
+
+        function startQuiz(mode) {
+            currentMode = mode;
+            currentQuestion = 0;
+            userAnswers = new Array(questions.length).fill(null);
+            answersRevealed = new Array(questions.length).fill(false);
+            shuffledQuestions = shuffleArray(questions).map(q => shuffleQuestionOptions(q));
+            inReviewMode = false;
+            reviewedQuestions = [];
+            document.getElementById('modeSelector').classList.add('hidden');
+            document.getElementById('quizContent').classList.remove('hidden');
+            document.getElementById('resultsCard').classList.remove('hidden');
+            document.getElementById('resultsCard').classList.remove('show');
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('backToReviewBtn').style.display = 'none';
+            document.getElementById('totalQ').textContent = shuffledQuestions.length;
+            if (mode === 'exam') {
+                timeRemaining = shuffledQuestions.length * 150;
+                startTimer();
+                document.getElementById('shuffleBtn').classList.add('hidden');
+            } else {
+                document.getElementById('timer').textContent = 'Learn Mode';
+                document.getElementById('shuffleBtn').classList.remove('hidden');
+            }
+            renderQuestion();
+        }
+
+        function startTimer() {
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    showResults();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            const timerEl = document.getElementById('timer');
+            timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            timerEl.classList.remove('warning', 'danger');
+            if (timeRemaining <= 60) timerEl.classList.add('danger');
+            else if (timeRemaining <= 300) timerEl.classList.add('warning');
+        }
+
+        function renderQuestion() {
+            const q = shuffledQuestions[currentQuestion], container = document.getElementById('questionsContainer'), letters = ['A','B','C','D'], ans = userAnswers[currentQuestion], revealed = answersRevealed[currentQuestion];
+            let opts = q.options.map((o, i) => { let c = 'option'; if (currentMode === 'learn' && revealed) { c += ' disabled'; if (i === q.correct) c += ' correct'; else if (i === ans && ans !== q.correct) c += ' incorrect'; } else if (ans === i) c += ' selected'; return `<div class="${c}" onclick="selectOption(${i})"><span class="option-marker">${letters[i]}</span><span class="option-text">${o}</span></div>`; }).join('');
+            let exp = currentMode === 'learn' ? `<div class="explanation ${revealed ? 'show' : ''}"><div class="explanation-title">📖 Explanation</div><div class="answer-header">Correct Answer: ${letters[q.correct]}</div><p class="explanation-text">${q.explanation}</p><a href="${q.docLink}" target="_blank" class="doc-link">📄 View AWS Documentation →</a></div>` : '';
+            container.innerHTML = `<div class="question-card"><div class="question-header"><span class="question-number">Question ${currentQuestion + 1}</span><span class="question-domain">Shield & DDoS</span></div><p class="question-text">${q.question}</p><div class="options">${opts}</div>${currentMode === 'learn' && !revealed ? '<button class="btn btn-primary" style="margin-top:1rem;width:100%;" onclick="revealAnswer()">Show Answer</button>' : ''}${exp}</div>`;
+            document.getElementById('currentQ').textContent = currentQuestion + 1; document.getElementById('progressFill').style.width = `${((currentQuestion + 1) / shuffledQuestions.length) * 100}%`; document.getElementById('prevBtn').disabled = currentQuestion === 0; document.getElementById('nextBtn').textContent = currentQuestion === shuffledQuestions.length - 1 ? (currentMode === 'exam' ? 'Submit Quiz' : 'See Results') : 'Next →';
+        }
+
+        function selectOption(idx) {
+            if (currentMode === 'learn' && answersRevealed[currentQuestion]) return;
+            userAnswers[currentQuestion] = idx;
+            renderQuestion(); // Always re-render to show selection in both modes
+        }
+
+        function revealAnswer() {
+            if (userAnswers[currentQuestion] === null) userAnswers[currentQuestion] = -1;
+            answersRevealed[currentQuestion] = true;
+            renderQuestion();
+        }
+
+        function navigate(direction) {
+            if (direction === 1 && currentQuestion === shuffledQuestions.length - 1) { showResults(); return; }
+            currentQuestion += direction;
+            currentQuestion = Math.max(0, Math.min(currentQuestion, shuffledQuestions.length - 1));
+            renderQuestion();
+        }
+
+        function shuffleQuiz() {
+            if (currentMode !== 'learn') return;
+            currentQuestion = 0;
+            userAnswers = new Array(questions.length).fill(null);
+            answersRevealed = new Array(questions.length).fill(false);
+            shuffledQuestions = shuffleArray(questions).map(q => shuffleQuestionOptions(q));
+            renderQuestion();
+            const notice = document.getElementById('shuffleNotice');
+            notice.style.animation = 'none';
+            notice.offsetHeight;
+            notice.style.animation = 'fadeIn 0.5s ease';
+        }
+
+        function showResults() {
+            if (timerInterval) clearInterval(timerInterval);
+            let correct = 0;
+            shuffledQuestions.forEach((q, idx) => {
+                if (userAnswers[idx] !== null && userAnswers[idx] !== -1 && userAnswers[idx] === q.correct) correct++;
+            });
+            const total = shuffledQuestions.length;
+            const percentage = Math.round((correct / total) * 100);
+            const passed = percentage >= 80;
+            document.getElementById('quizContent').classList.add('hidden');
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('resultsCard').classList.add('show');
+            document.getElementById('scorePercent').textContent = percentage + '%';
+            document.getElementById('scorePercent').className = 'results-score ' + (passed ? 'pass' : 'fail');
+            document.getElementById('resultStatus').textContent = passed ? '🎉 PASSED!' : '📚 Keep Studying';
+            document.getElementById('resultStatus').className = 'results-status ' + (passed ? 'pass' : 'fail');
+            document.getElementById('resultDetails').textContent = `You answered ${correct} out of ${total} questions correctly. ${passed ? 'Great job!' : 'You need 80% to pass.'}`;
+            document.getElementById('correctCount').textContent = correct;
+            document.getElementById('incorrectCount').textContent = total - correct;
+        }
+
+        function restartQuiz() {
+            document.getElementById('resultsCard').classList.remove('show');
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('backToReviewBtn').style.display = 'none';
+            document.getElementById('modeSelector').classList.remove('hidden');
+            document.getElementById('quizContent').classList.add('hidden');
+            inReviewMode = false;
+            reviewedQuestions = [];
+            if (timerInterval) clearInterval(timerInterval);
+        }
+        function showReview() {
+            const letters = ['A','B','C','D'];
+            const tbody = document.getElementById('reviewTableBody');
+            tbody.innerHTML = '';
+            shuffledQuestions.forEach((q, idx) => {
+                const userAns = userAnswers[idx] !== null && userAnswers[idx] !== undefined ? userAnswers[idx] : -1;
+                const isCorrect = userAns === q.correct;
+                const rowClass = reviewedQuestions.includes(idx) ? 'reviewed' : '';
+                let row = '<tr class="' + rowClass + '" onclick="reviewQuestion(' + idx + ')">';
+                row += '<td class="review-q-num">' + (idx + 1) + '</td>';
+                row += '<td class="review-q-text">' + q.question.substring(0, 100) + (q.question.length > 100 ? '...' : '') + '</td>';
+                row += '<td class="review-answer ' + (userAns >= 0 ? (isCorrect ? 'correct' : 'incorrect') : '') + '">' + (userAns >= 0 ? letters[userAns] : '—') + '</td>';
+                row += '<td class="review-answer correct">' + letters[q.correct] + '</td>';
+                row += '<td>' + (isCorrect ? '<span style="color:var(--success)">✓ Correct</span>' : '<span style="color:var(--error)">✗ Incorrect</span>') + '</td>';
+                row += '</tr>';
+                tbody.innerHTML += row;
+            });
+            document.getElementById('totalReviewCount').textContent = shuffledQuestions.length;
+            document.getElementById('reviewedCount').textContent = reviewedQuestions.length;
+            document.getElementById('resultsCard').classList.remove('show');
+            document.getElementById('reviewSection').classList.add('show');
+        }
+        function reviewQuestion(qIndex) {
+            if (!reviewedQuestions.includes(qIndex)) {
+                reviewedQuestions.push(qIndex);
+                document.getElementById('reviewedCount').textContent = reviewedQuestions.length;
+            }
+            currentMode = 'learn';
+            currentQuestion = qIndex;
+            answersRevealed[qIndex] = true;
+            inReviewMode = true;
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('quizContent').classList.remove('hidden');
+            document.getElementById('timer').textContent = 'Learn Mode';
+            document.getElementById('shuffleBtn').style.display = 'none';
+            document.getElementById('backToReviewBtn').style.display = 'inline-block';
+            if (timerInterval) clearInterval(timerInterval);
+            renderQuestion();
+        }
+        function backToReview() {
+            document.getElementById('quizContent').classList.add('hidden');
+            document.getElementById('backToReviewBtn').style.display = 'none';
+            document.getElementById('reviewSection').classList.add('show');
+            showReview();
+        }
+        function backToResults() {
+            document.getElementById('reviewSection').classList.remove('show');
+            document.getElementById('resultsCard').classList.add('show');
+        }
+    </script>
+</body>
+</html>
