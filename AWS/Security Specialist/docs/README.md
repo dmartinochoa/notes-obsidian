@@ -58,6 +58,3 @@ Each domain guide includes:
 - 🎥 **Video Resources** - Recommended re:Invent/re:Inforce talks
 - ✅ **Exam Tips** - Common question patterns
 
-## Contributing
-
-Want to help complete these guides? See [CONTRIBUTING.md](../CONTRIBUTING.md).

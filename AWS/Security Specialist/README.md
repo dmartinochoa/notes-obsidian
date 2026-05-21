@@ -34,9 +34,7 @@
 
 8. [📝 Quick Cheat Sheets](#-quick-cheat-sheets)
 
-9. [1100 Real exam like questions (Skillcertpro)]([#-scs-c03-new-topics](https://skillcertpro.com/product/aws-certified-security-specialty-scs-c02-exam-questions/))
-
-https://skillcertpro.com/product/aws-certified-security-specialty-scs-c02-exam-questions/
+9. [1100 real exam-like questions (Skillcertpro)](https://skillcertpro.com/product/aws-certified-security-specialty-scs-c02-exam-questions/)
 
   
 

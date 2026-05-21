@@ -8,9 +8,7 @@ Repo: [dmartinochoa/notes-obsidian](https://github.com/dmartinochoa/notes-obsidi
 
 ## Current focus
 
-**AWS Certified Security - Specialty (SCS-C03)** — see [`AWS/Security Specialist/`](AWS/Security%20Specialist/).
-
-Start there from [`AWS/Security Specialist/README.md`](AWS/Security%20Specialist/README.md), which is a self-authored master summary keyed to the six SCS-C03 domains.
+**AWS Certified Security — Specialty (SCS-C03)** → start at [`AWS/Security Specialist/README.md`](AWS/Security%20Specialist/README.md), a self-authored master summary keyed to the six SCS-C03 domains.
 
 ---
 
@@ -19,34 +17,33 @@ Start there from [`AWS/Security Specialist/README.md`](AWS/Security%20Specialist
 ```
 notes/
 ├── AWS/
-│   ├── Cloud Practitioner Essentials/      # CLF foundations (M1–M13)
-│   ├── DevOps Engineer Professional/       # DOP-C02 prep, organized by exam domain
-│   ├── Security Specialist/                # SCS-C03 prep — current focus
-│   └── AWS Certified Security Specialty SCS-C03/   # scratch workspace
-├── AWS Test projects/                      # hands-on code experiments
-└── README.md                               # this file
+│   ├── Cloud Practitioner Essentials/   # CLF foundations (M1–M13)
+│   ├── DevOps Engineer Professional/    # DOP-C02 prep, organized by exam domain
+│   └── Security Specialist/             # SCS-C03 prep — current focus
+├── AWS Test projects/                   # hands-on code experiments
+└── README.md
 ```
 
-### `AWS/Cloud Practitioner Essentials/`
-Foundational notes from AWS Cloud Practitioner Essentials, one file per module (M1 – M13). Covers compute, networking, storage, databases, security, ML/analytics, pricing, migration, Well-Architected Framework.
+### [`AWS/Cloud Practitioner Essentials/`](AWS/Cloud%20Practitioner%20Essentials/)
+Foundational notes from AWS Cloud Practitioner Essentials, one file per module (M1–M13). Covers compute, networking, storage, databases, security, ML/analytics, pricing, migration, and the Well-Architected Framework.
 
-### `AWS/DevOps Engineer Professional/`
-Comprehensive DOP-C02 notes broken out by exam domain:
+### [`AWS/DevOps Engineer Professional/`](AWS/DevOps%20Engineer%20Professional/)
+DOP-C02 notes broken out by exam domain. See [`README.md`](AWS/DevOps%20Engineer%20Professional/README.md) for the full table of contents. Highlights:
 
-- `01-sdlc-automation/` — CodeBuild, CodeDeploy, CodePipeline, CodeArtifact, CodeGuru, EC2 Image Builder, Amplify, Jenkins
-- `02-configuration-management-and-iac/` — CloudFormation, CDK, SAM, OpsWorks, Service Catalog, Step Functions, SSM, AppConfig, EBS
-- `03-resilient-cloud-solutions/` — ASG, ALB/NLB, ECS/EKS/ECR, Lambda, API Gateway, Route 53, DynamoDB, ElastiCache, Kinesis, DMS, S3, DR
+- `01-sdlc-automation/` — Code* suite, CodeGuru, EC2 Image Builder, Amplify, Jenkins
+- `02-configuration-management-and-iac/` — CloudFormation, CDK, SAM, OpsWorks, Service Catalog, Step Functions, SSM, AppConfig
+- `03-resilient-cloud-solutions/` — Compute, networking, data, DR
 - `04-monitoring-and-logging/` — CloudWatch, Athena, OpenSearch, Lookout
-- `05-incident-and-event-response/` — CloudTrail, EventBridge, SNS/SQS, X-Ray, EC2 status checks, S3 event notifications, health dashboards
-- `06-security-and-compliance/` — Organizations, IAM Identity Center, Config, Control Tower, GuardDuty, Inspector, Macie, Detective, WAF, Network Firewall, Firewall Manager, Trusted Advisor
+- `05-incident-and-event-response/` — CloudTrail, EventBridge, SNS/SQS, X-Ray
+- `06-security-and-compliance/` — Organizations, IAM Identity Center, Config, Control Tower, GuardDuty, Inspector, Macie, Detective, WAF
 - `07-other-services/` — CloudFront, Redshift, QuickSight, Copilot, A2C, tagging
-- `cheatsheets/` — Quick-reference tables (CLI commands, limits, comparison tables, exam tips, auth policy types, traffic shifting, lifecycle hooks, etc.)
-- `code examples/` — Working CloudFormation templates and SAM apps
+- `cheatsheets/` — quick-reference tables (CLI commands, limits, comparisons, exam tips)
+- `code examples/` — working CloudFormation templates and SAM apps
 
-### `AWS/Security Specialist/`  *(current focus)*
+### [`AWS/Security Specialist/`](AWS/Security%20Specialist/) *(current focus)*
 SCS-C03 study material:
 
-- **[`README.md`](AWS/Security%20Specialist/README.md)** — master summary, six-domain breakdown, cheat sheets
+- [`README.md`](AWS/Security%20Specialist/README.md) — master summary, six-domain breakdown, cheat sheets
 - `Chapter 1 – Security 101.md` … `Chapter 8 – Troubleshooting Scenarios.md` — long-form chapter notes
 - `Quiz/` — self-quizzes per chapter
 - `docs/domain-1-detection.md` … `docs/domain-6-governance.md` — task-statement-aligned breakdowns with sub-skills and service mappings
@@ -56,10 +53,10 @@ SCS-C03 study material:
 - `General Exam Tips.md` — test-taking heuristics
 - `NETWORKS GLOSSARY.md` — networking terms
 
-### `AWS Test projects/`
+### [`AWS Test projects/`](AWS%20Test%20projects/)
 Hands-on code experiments referenced from the notes.
 
-- `lambda-process-SAM/` — SAM-deployed Lambda image-resizer (includes its own `README.md`)
+- `lambda-process-SAM/` — SAM-deployed Lambda image resizer (see its own [`README.md`](AWS%20Test%20projects/lambda-process-SAM/README.md))
 
 ---
 
@@ -80,14 +77,13 @@ Passing score: 750 / 1000.
 
 ## Conventions
 
-- Notes are written in CommonMark Markdown for Obsidian compatibility.
-- Filenames sometimes have typos preserved (e.g. `Cheetsheet.md`) — left in place to avoid breaking existing wiki-links.
-- The `AWS Test projects/lambda-process-SAM/` folder contains `node_modules/` and `.aws-sam/` build output — these are noise when searching across the vault.
-- Recommended Obsidian search exclusions: `node_modules`, `.aws-sam`, `.git`.
+- Notes are CommonMark Markdown for Obsidian compatibility.
+- Filename typos are sometimes preserved (e.g. `Cheetsheet.md`) to avoid breaking existing wiki-links.
+- `AWS Test projects/lambda-process-SAM/` may carry `node_modules/` and `.aws-sam/` build output locally — both are gitignored. Recommended Obsidian search exclusions: `node_modules`, `.aws-sam`, `.git`.
 
 ## Sync
 
-Push/pull is handled by the `github-sync` Obsidian plugin (configured under `.obsidian/plugins/github-sync/`). Standard git also works from the repo root.
+Push/pull is handled by the `github-sync` Obsidian plugin (configured under `.obsidian/plugins/github-sync/`, gitignored). Standard `git` also works from the repo root.
 
 ## License
 

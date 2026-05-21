@@ -1,33 +1,23 @@
 # Obsidian workspace and cache
 .obsidian/
 
-# Optional: if you want to track some Obsidian settings, you can be more specific:
-# .obsidian/workspace.json
-# .obsidian/workspace-mobile.json
-# .obsidian/cache/
+# IDE / editor
+.idea/
+.vscode/
+.claude/
 
-# macOS
+# OS files
 .DS_Store
-
-# Windows
 Thumbs.db
 desktop.ini
-
-# Linux
 *~
 .directory
 
-# Backup files
+# Backup / temp files
 *.bak
 *.tmp
 
-samconfig.toml
-.claude/
+# SAM / AWS build output
 .aws-sam/
+samconfig.toml
 .sentry-native
- 
-/.idea/modules.xml
-/.idea/notes.iml
-/.idea/inspectionProfiles/profiles_settings.xml
-/.idea/inspectionProfiles/Project_Default.xml
-/.idea/vcs.xml
