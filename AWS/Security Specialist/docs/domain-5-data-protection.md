@@ -102,9 +102,30 @@ This domain covers data protection in transit, at rest, and management of confid
 
 ### Key Rotation
 
-- **Automatic rotation**: Once per year (365 days)
-- **On-demand rotation**: Manual rotation
-- Old key material retained for decryption
+- **Automatic rotation**: Configurable period **90–2560 days** (default ~1 year). The fixed "annual only" limit changed in 2022.
+- **Auto-rotation only works for**: symmetric CMKs with AWS-generated key material. **Not supported for**: asymmetric keys, imported key material, custom key stores (CloudHSM-backed).
+- **On-demand / manual rotation** (universal pattern, works for all key types):
+  1. Create new CMK
+  2. Update the **alias** to point at the new CMK
+  3. Keep the old CMK active so existing ciphertext can still be decrypted
+- Old key material is retained for decryption — **rotation does NOT re-encrypt existing data**. Each encrypted blob stores an EDK referencing the exact CMK that wrapped it, and KMS auto-routes decryption to that CMK regardless of aliases.
+- **Re-encryption** (separate operation) is required only when:
+  - Key was compromised and you want to retire it
+  - Compliance demands no live data depends on the old key
+  - You want to delete the old CMK (7–30 day waiting period)
+- Use the **`kms:ReEncrypt` API** for re-encryption — safer than Decrypt+Encrypt because the plaintext DEK never leaves KMS.
+
+### Exam decoder for KMS rotation
+
+| Phrase in question | Probable answer |
+|---|---|
+| "Annual rotation, minimal effort, symmetric, AWS-generated" | Enable auto-rotation |
+| "Immediate / on-demand rotation", "customer requested", "compliance event" | Manual: new CMK + alias swap |
+| "Customer brought their own key material" / "imported" | Manual only (auto disabled) |
+| "Asymmetric key needs rotation" | Manual only (auto disabled) |
+| "Custom key store / CloudHSM-backed" | Manual only (auto disabled) |
+| "Minimal application changes" | Use alias (don't hardcode key IDs in app) |
+| "Key was compromised, retire it" | Manual rotation + `ReEncrypt` existing data + schedule old CMK deletion |
 
 ### Key Documentation Links
 
@@ -261,11 +282,35 @@ This domain covers data protection in transit, at rest, and management of confid
 - Use for regulatory compliance (e.g., SEC Rule 17a-4)
 - Time-based retention controls
 
-### Digital Code Signing
+### Digital Code Signing (AWS Signer)
 
 - **AWS Signer**: Managed code signing for Lambda, IoT, container images
 - Validates code integrity and publisher identity
-- Signing profiles define cryptographic algorithms and validity periods
+- **Signing profiles** define cryptographic algorithms and validity periods
+- **Code Signing for Lambda**: configured at the function level with `CodeSigningConfig`. `UntrustedArtifactOnDeployment` can be `WARN` (log) or `ENFORCE` (block).
+
+#### Revocation APIs — know the blast radius
+
+| API | Scope | Reversible? | When to use |
+|---|---|---|---|
+| `RevokeSignature` | One specific signature (by job ID) | **No** — permanent | Revoke a single bad artifact |
+| `RevokeSigningProfile` | Entire profile + **ALL signatures ever created with it** | **No** — permanent | Profile compromise (use carefully) |
+| `CancelSigningProfile` | Stops profile from creating *new* signatures; existing signatures remain valid | Different from revoke — safer | "Stop signing new things but keep existing valid" |
+
+#### The "rotate, migrate, revoke" pattern (departing signer / compromised profile)
+
+`RevokeSigningProfile` invalidates every signature from that profile — **immediately breaks every Lambda with `ENFORCE` code signing**. Correct sequence:
+
+1. **Create a new signing profile** (without the departing signer's access)
+2. **Update CI/CD pipelines** to use the new profile going forward
+3. **Re-sign existing artifacts** with the new profile (so production keeps working)
+4. **Then revoke the old profile** — now safe because nothing depends on it
+5. **Defense in depth**: also remove the departing signer's IAM `signer:*` permissions (immediate, no production impact)
+
+#### Common trap
+
+- "Schedule revocation for [future date]" alone is wrong — `RevokeSigningProfile` retroactively invalidates ALL past signatures, not just future ones. Setting an effective date just delays the breakage.
+- "RevokeSignature for past month signatures" is wrong granularity — doesn't prevent future signing access (only IAM removal does that).
 
 📖 **S3 Object Lock**: [Object Lock Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html)  
 📖 **Glacier Vault Lock**: [Vault Lock Documentation](https://docs.aws.amazon.com/amazonglacier/latest/dev/vault-lock.html)  

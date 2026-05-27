@@ -235,8 +235,10 @@ KMS Key Rotation
 	* NO manual rotation.
 * __Customer-Managed CMKs__: _CMKs that belong to the customer, fully managed by the customer. CAN be viewed/audited, CAN change key policies/grants, add tags and create aliases._
 	* Customer manages rotation.
-	* Automatic rotation every __1 YEAR__ can be enabled - __ensure CMK is not hardcoded before enabling auto-rotation__.
-	* Manual rotation is possible by (1) Creating new CMK (2) Update apps/key-alias to use new CMK (3) Keep old CMK so it can decrypt old objects.
+	* Automatic rotation can be enabled with a configurable period of __90 to 2560 days__ (default ~1 year; the pre-2022 fixed "annual only" limit no longer applies) — __use aliases, not key IDs, in apps so rotation is transparent__.
+	* Auto-rotation ONLY works for: __symmetric CMKs with AWS-generated key material__. NOT supported for asymmetric, imported material, or custom key stores (CloudHSM-backed) — those require manual rotation.
+	* Manual rotation pattern (universal — works for ALL key types): (1) Create new CMK (2) Update the alias to point to the new CMK (3) Keep the old CMK active so existing ciphertext can still be decrypted. Application code does not change because it references the alias, not the key ID.
+	* __Auto-rotation does NOT re-encrypt existing data__ — it rotates backing key material and retains old material so old EDKs still decrypt. Same for manual alias-swap rotation. Re-encryption is a separate operation (use `kms:ReEncrypt` API) only required when you must retire the old key for compromise or strict compliance.
 	* Deletion requires __7-30 day waiting period__.
 	* Deletion CANNOT be reversed as AWS deletes the Key Material + all metadata associated with the CMK.
 * __Customer-Managed CMKs w/ Imported Key Material__: _Same as above, except with Imported Key Material._
@@ -543,12 +545,19 @@ AWS Security Hub:
 * Integrates with _GuardDuty, Macie, Inspector, IAM Access Analyzer, Firewall Manager, 3rd-party marketplace tools, CloudWatch (trigger lambdas/SIEM/3rd-party tools)_.
 
 Network packet inspection in AWS
-* __NO AWS SERVICE SUPPORTS NETWORK PACKET INSPECTION - USE 3RD-PARTY SOLUTION FROM AWS MARKETPLACE__.
+* __AWS Network Firewall (launched Nov 2020) supports DPI/IPS/IDS__ via Suricata-compatible rules. This is the canonical AWS-native answer for packet inspection now. 3rd-party Marketplace appliances remain an option for advanced needs.
 * __Network Packet Inspection / Deep Packet Inspection__ involves inspecting a packet's headers and data.
 	* Filters non-compliant protocols, viruses, spam, intrusions.
 	* Takes action by blocking, re-routing or logging.
 	* IDS/IPS combined with a traditional firewall.
-* How to use: install 3rd-party solution for Network Packet Inspection via. AWS Marketplace.
+* __AWS Network Firewall capabilities__:
+	* Stateful and stateless rule groups
+	* Suricata rule syntax for IPS/IDS signatures
+	* Domain filtering (SNI-based)
+	* Protocol identification and anomaly detection
+	* Deployment models: distributed (firewall per AZ), centralized (inspection VPC), or combined
+* __IMPORTANT__: For DPI on TLS-encrypted traffic (e.g. HTTPS via NLB), terminate TLS at the load balancer first so Network Firewall sees plaintext. Network Firewall does NOT decrypt TLS itself.
+* __Firewall Manager vs Network Firewall trap__: Firewall Manager is a *management* tool (centralizes WAF/Shield/Network Firewall/SG policies across an Organization). It does NOT inspect traffic itself. Exam loves this trap.
 
 Active Directory Federation with AWS: AWS enables federated sign-in to AWS using Active Directory credentials
 * Great for companies with an existing Active Directory Domain + have corporate users who have AD accounts.

@@ -147,9 +147,38 @@ This domain covers identity management, access control, and federation in AWS.
 
 - **AssumeRole**: For AWS resources or cross-account
 - **AssumeRoleWithSAML**: For SAML federation
-- **AssumeRoleWithWebIdentity**: For web/mobile apps
+- **AssumeRoleWithWebIdentity**: For web/mobile apps (OIDC)
 - **GetSessionToken**: For MFA-protected API access
 - **GetFederationToken**: For federated users
+
+### Session duration limits (memorize)
+
+| API | Default | Maximum |
+|---|---|---|
+| `AssumeRole` | 1h | 12h (via role's `MaxSessionDuration`) |
+| `AssumeRoleWithSAML` | 1h | 12h |
+| `AssumeRoleWithWebIdentity` | 1h | 12h |
+| `GetSessionToken` (IAM user) | 1h | 36h (root: max 1h only) |
+| `GetFederationToken` | 12h | 36h |
+
+### Regional vs Global STS endpoints (the opt-in region trap)
+
+By default, AWS SDKs may call the **global STS endpoint** (`sts.amazonaws.com`, served from us-east-1). Tokens from the global endpoint are:
+
+- **Version 1 format** (~1 KB+)
+- **NOT valid in opt-in regions** (Hong Kong `ap-east-1`, Bahrain `me-south-1`, Cape Town `af-south-1`, Jakarta `ap-southeast-3`, UAE `me-central-1`, Hyderabad `ap-south-2`, Melbourne `ap-southeast-4`, Spain `eu-south-2`, Zurich `eu-central-2`, Tel Aviv `il-central-1`)
+- Symptom: `InvalidClientTokenId` or token-rejected errors when calling services in opt-in regions
+
+**Fix**: use **regional STS endpoints** (`sts.<region>.amazonaws.com`):
+
+- Tokens are **version 2** (smaller, ~600 bytes)
+- **Valid in ALL regions** including opt-in
+- Lower latency
+
+How to enable:
+- SDK env var: `AWS_STS_REGIONAL_ENDPOINTS=regional`
+- Boto3: `boto3.client('sts', region_name='us-east-1')`
+- Account-level toggle: **IAM Console → Account settings → STS Region compatibility** → "Active in all AWS Regions" for each opt-in region
 
 ### Cross-Account Access
 
@@ -157,7 +186,12 @@ This domain covers identity management, access control, and federation in AWS.
 2. Grant assume role permission in source account
 3. Use STS AssumeRole to get temporary credentials
 
-📖 **Documentation**: [STS User Guide](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html)
+### Confused Deputy Problem (Skill 4.2.1)
+
+When a 3rd-party service assumes a role in your account, an attacker could trick them into using your role on someone else's behalf. **Mitigation**: require `sts:ExternalId` in the role's trust policy — a shared secret between you and the 3rd party that they must pass on every `AssumeRole` call.
+
+📖 **Documentation**: [STS User Guide](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html)  
+📖 **Regional endpoints**: [Manage STS in a Region](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html)
 
 ---
 
@@ -245,10 +279,34 @@ This domain covers identity management, access control, and federation in AWS.
 
 ### AD Connector
 
-- **Does not store directory data** in AWS
-- Redirects requests to on-premises AD
+- **Does not store directory data** in AWS — it is a **proxy/redirector** to on-premises AD
+- **No trust relationship is established** by AD Connector — it just forwards auth requests. Any exam answer that says "create a forest trust with AD Connector" is wrong on construction.
 - Use when you want to use existing on-premises AD for AWS authentication
 - Supports MFA with existing RADIUS server
+- Requires consistent network connectivity (VPN/Direct Connect) — no offline survival
+
+### IAM Identity Center + on-premises AD (exam-critical)
+
+Two valid architectures:
+
+| Approach | When to use | Trust required? |
+|---|---|---|
+| **AD Connector** → on-prem AD | Simpler setup, no AWS-side directory to manage. Requires reliable on-prem connectivity. | **No** — AD Connector is a proxy. |
+| **AWS Managed Microsoft AD** with **two-way forest trust** to on-prem AD | Preferred for multi-account, resilient setups. Identity Center can enumerate on-prem users/groups bidirectionally. | **Yes — two-way (bidirectional)**. |
+
+**Why two-way trust (not one-way) for IAM Identity Center**: per AWS docs, Identity Center needs to query the trusted on-premises domain to look up users/groups for assignment to permission sets. A one-way trust (AWS Managed AD trusts on-prem only) is **insufficient** — users could authenticate but Identity Center can't enumerate the trusted directory for assignments.
+
+**Don't confuse with ADFS**: ADFS is the older SAML 2.0 pattern (you run an ADFS server on-prem, AWS is configured as the Trusted Relying Party). That's a different mechanism — separate from IAM Identity Center which is AWS-managed SSO.
+
+### Quick exam decoder for AD questions
+
+| Phrase | Service / answer |
+|---|---|
+| "Active Directory" + "trust relationship" | AWS Managed Microsoft AD |
+| "Active Directory" + "no infrastructure to manage" + "proxy" / "redirect" | AD Connector |
+| "IAM Identity Center" + "on-prem AD" + "efficient multi-account" | Managed Microsoft AD + **two-way** forest trust |
+| "SAML" + "ADFS" + "Relying Party" | Old-school SAML federation (not Identity Center) |
+| "Samba-based" / "small directory" / "basic AD features" | Simple AD |
 
 ### Security & Troubleshooting (Skill 4.1.3)
 

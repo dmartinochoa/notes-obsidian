@@ -125,15 +125,38 @@ This domain covers monitoring, alerting, logging, and threat detection capabilit
 
 ### What You Need to Know
 
-- **Management Events**: Control plane operations (default enabled)
-- **Data Events**: Data plane operations (S3, Lambda, DynamoDB) - must enable explicitly
-- **Insights Events**: Unusual API activity detection
+- **Management Events**: Control plane operations (default enabled, free for one copy)
+- **Data Events**: Data plane operations (S3 object-level, Lambda Invoke, DynamoDB item-level, plus others) — **OFF by default**, must enable explicitly; **$0.10 per 100k events**
+- **Insights Events**: Unusual API activity detection — **OFF by default**; **$0.35 per 100k events**
 - **Organization Trail**: Single trail for all accounts in org
+
+### Event class defaults — memorize the trap
+
+| Class | Default state | Why off by default | Cost |
+|---|---|---|---|
+| Management events | ✅ On | Cheap, low volume | Free (one copy) |
+| **Data events** | ❌ **Off** | High volume — busy app = billions/day | $0.10 / 100k |
+| Insights events | ❌ Off | Pattern detection cost | $0.35 / 100k |
+
+**Data event service coverage**: S3 (`GetObject`/`PutObject`/etc), Lambda (`Invoke`), DynamoDB (item-level), plus S3 Outposts, EBS Direct API, FinSpace, Glue, RDS Data API, SageMaker, and others.
+
+### CloudTrail trail vs CloudTrail Lake — independent configurations
+
+These are **two separate products** with **independent settings**. A trail configured for S3 data events does NOT make those events visible in CloudTrail Lake.
+
+| Product | What it is | How to enable data events |
+|---|---|---|
+| **CloudTrail trail** | Classic. Delivers events to S3 / CloudWatch Logs. | Enable data events **on the trail**. |
+| **CloudTrail Lake** | Managed audit data lake. Events stored in **Event Data Stores**, queryable with SQL. | Enable data events **on the Event Data Store** (separate config). |
+
+**The trap**: A question describes investigating S3 activity *in CloudTrail Lake*, but no data events appear. Two answer choices differ by one keyword — "CloudTrail trail not configured for data events" (wrong product) vs "CloudTrail Lake [Event Data Store] not configured for data events" (correct). Read the question for which product is being used and match the answer to that product's config.
+
+**Anti-pattern**: never default to "no logs means nothing happened." Default to "logging gap exists, fix the logging."
 
 ### Log Integrity
 
 - **Log File Validation**: SHA-256 hash, RSA signature
-- **Digest Files**: Hourly summary of log files
+- **Digest Files**: Hourly summary of log files (signed by AWS-controlled private key, validate with public key)
 - Validates logs haven't been modified/deleted
 
 ### Multi-Account Logging
@@ -141,9 +164,22 @@ This domain covers monitoring, alerting, logging, and threat detection capabilit
 - Central S3 bucket with bucket policy
 - KMS key with cross-account access
 - SNS topic for notifications
+- **Organization Trail** in management or delegated-admin account — member accounts cannot disable it (structural defense vs. an SCP-only approach)
 - CloudTrail Lake for querying events
 
-📖 **Documentation**: [CloudTrail User Guide](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/)
+### Detecting CloudTrail tampering — pick the right tool
+
+| Need | Tool | Latency |
+|---|---|---|
+| Immediate alert on `StopLogging` / `DeleteTrail` / `UpdateTrail` | **EventBridge rule** → SNS/Lambda | Seconds |
+| Alerting + dashboards based on log content | CloudWatch Logs metric filter + alarm | Minutes (log delivery lag) |
+| Compliance posture check | AWS Config managed rules (`cloud-trail-enabled`, `cloud-trail-log-file-validation-enabled`, `multi-region-cloud-trail-enabled`) | Periodic |
+| Defense-in-depth detection | GuardDuty finding `Stealth:IAMUser/CloudTrailLoggingDisabled` | Eventual |
+
+For prevention (different from detection): SCP denying `cloudtrail:StopLogging`, `cloudtrail:DeleteTrail`, `cloudtrail:UpdateTrail` on the org trail ARN, plus log file integrity validation enabled.
+
+📖 **Documentation**: [CloudTrail User Guide](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/)  
+📖 **CloudTrail Lake**: [AWS CloudTrail Lake](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-lake.html)
 
 ---
 

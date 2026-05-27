@@ -280,7 +280,35 @@ This domain covers network edge security, compute workload security, and network
 - **IAM-based access control** with session policies
 - Supports **port forwarding** and **SSH tunneling**
 
-📖 **Documentation**: [Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html)
+#### VPC Interface Endpoints required for Session Manager in a private subnet (no internet)
+
+For an EC2 instance in a private subnet (no NAT, no IGW) to be reachable via Session Manager, the SSM Agent on the instance must reach these AWS endpoints. **All three** are required:
+
+| Endpoint | Purpose |
+|---|---|
+| `com.amazonaws.<region>.ssm` | Primary SSM API — agent registration, fetch commands |
+| `com.amazonaws.<region>.ssmmessages` | **Session Manager's secure data channel** (the actual shell traffic) |
+| `com.amazonaws.<region>.ec2messages` | SSM Agent ↔ SSM control plane messaging |
+
+**Mnemonic: "SSM + two messages"** (`ssm`, `ssmmessages`, `ec2messages`). Drop any one and Session Manager breaks.
+
+**Common trap**: Quiz options offer "2 endpoints (`ssm` + `ssmmessages`)" — missing `ec2messages`. Looks reasonable, doesn't work. Count three.
+
+#### Optional additional endpoints (stack on more requirements)
+
+- **S3 Gateway Endpoint** (free) — needed if SSM Agent fetches patches/scripts from S3 or session output is sent to S3
+- **`logs` Interface Endpoint** — needed if session logs stream to CloudWatch Logs from the instance
+- **`kms` Interface Endpoint** — needed if session data is encrypted with a CMK
+
+#### NAT Gateway alternative (less secure)
+
+Putting a NAT Gateway in a public subnet *would* allow the SSM Agent to reach SSM over the internet. But:
+- Not the "most secure" answer — traffic leaves AWS via public internet
+- Interface Endpoints keep traffic on the AWS backbone (preferred for compliance)
+- Pure-distractor option: **"NAT Gateway in a private subnet"** is architecturally invalid (NAT Gateway must live in a public subnet)
+
+📖 **Documentation**: [Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html)  
+📖 **VPC Endpoints for SSM**: [Using SSM with VPC endpoints](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-create-vpc.html)
 
 ### EC2 Instance Connect (Skill 3.2.5)
 
@@ -385,14 +413,39 @@ This domain covers network edge security, compute workload security, and network
 
 ### Security Features
 
-- **Origin Access Control (OAC)**: Restrict S3 access to CloudFront only
-- **Custom headers**: Add security headers (X-Frame-Options, Content-Security-Policy, HSTS)
+- **Origin Access Control (OAC)**: Restrict S3 access to CloudFront only — **replaces the legacy Origin Access Identity (OAI)**. OAC supports more origin types, SSE-KMS, and dynamic requests. Use OAC for new distributions.
+- **Custom headers**: Add security headers (X-Frame-Options, Content-Security-Policy, HSTS) — handled via Response Headers Policy (below)
 - **Field-level encryption**: Encrypt specific POST fields at the edge
 - **Signed URLs and cookies**: Time-limited access to private content
+  - **Signed URLs**: restrict access to *individual files* (or for HTTP clients that don't support cookies)
+  - **Signed Cookies**: restrict access to *multiple files* / entire site sections — same auth covers many resources
 - **Geographic restrictions**: Block or allow by country
 - **TLS/SSL**: Enforce HTTPS, configure minimum TLS version
 
-📖 **Documentation**: [CloudFront Security](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/SecurityAndPrivacy.html)
+### CloudFront Policies — the three-policy trio (high-frequency exam topic)
+
+CloudFront uses three separate policy types. Picking the wrong one is a classic SCS-C03 trap.
+
+| Policy | Controls | Affects cache key? |
+|---|---|---|
+| **Cache Policy** | What's used as the **cache key** (headers/cookies/query strings that make a cached entry unique). Anything in here is also forwarded to origin. | **Yes** — fragments cache per included value |
+| **Origin Request Policy** | What's included in the **request to origin**, *without* affecting the cache key. Pure forwarding. | **No** |
+| **Response Headers Policy** | Headers CloudFront **adds/modifies on responses to the viewer** (CORS, HSTS, X-Frame-Options, Content-Security-Policy) | N/A |
+
+### Decoder for "which policy?" questions
+
+| Goal | Policy |
+|---|---|
+| Forward an **Authorization** / **JWT** header to origin (without per-user cache fragmentation) | **Origin Request Policy** — `Managed-AllViewerExceptHostHeader` is the canonical AWS-managed choice |
+| Forward **signed cookies** to origin so backend can validate them | **Origin Request Policy** (unless you want per-user caching, then Cache Policy) |
+| Cache differently per **device type** / per **language** / per **A-B test cookie** | **Cache Policy** — header/cookie included intentionally to fragment cache |
+| Add **HSTS** / **X-Frame-Options: DENY** / **CSP** to all responses | **Response Headers Policy** |
+| Vary the cache by user identity (per-user pages) | **Cache Policy** with the identifying header |
+
+**Common trap**: A question asks "forward the Authorization header to origin." The Cache Policy *can* technically forward it (anything in the Cache Policy is forwarded to origin), but it also fragments your cache by Authorization value — meaning every user's JWT becomes a unique cache entry and cache hit rate collapses. The correct choice is **Origin Request Policy** — forwards without polluting the cache key.
+
+📖 **Documentation**: [CloudFront Security](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/SecurityAndPrivacy.html)  
+📖 **Policies**: [Using cache and origin request policies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/working-with-policies.html)
 
 ---
 
