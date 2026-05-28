@@ -193,6 +193,98 @@ For prevention (different from detection): SCP denying `cloudtrail:StopLogging`,
 - **Subscription Filters**: Real-time processing to Lambda/Kinesis/Firehose
 - **Data Protection** (NEW in SCS-C03): Mask sensitive data in logs
 
+### CloudWatch Agent — log shipping from EC2/on-prem
+
+- **Unified agent** that ships **metrics + logs** to CloudWatch
+- Install via SSM Distributor, baked into AMI (recommended for ASG), or manual
+- Configuration JSON specifies log file paths, log groups, retention, etc.
+- Required IAM role: `CloudWatchAgentServerPolicy` on the EC2 instance profile
+- Replaces older "CloudWatch Logs agent" (deprecated)
+
+#### Ephemeral compute → stream logs off-instance immediately
+
+When the question describes any of:
+- Auto Scaling group / scale-in events
+- Spot instances / ephemeral workloads
+- "Logs lost when instances terminated"
+- Containers, Fargate, Lambda
+
+→ Answer is always **continuous streaming to CloudWatch Logs** (or Firehose for higher volumes), not batch upload to S3. Batch uploads create a data-loss window equal to the interval between uploads.
+
+| Approach | Data loss window | Use when |
+|---|---|---|
+| CloudWatch Agent → Logs (continuous) | ~seconds | Default for EC2 / on-prem logs |
+| Application → SDK → Logs (PutLogEvents) | ~seconds | Direct integration in app code |
+| Kinesis Data Firehose → S3/OpenSearch | ~seconds–minutes | High-volume, custom downstream destinations |
+| Cron-uploaded S3 every N hours | **N hours** | Almost never the right answer for ephemeral compute |
+| Mounted file share (FSx/EFS) + scheduled copy | Interval-dependent | Specialized cases only |
+
+### CloudWatch Logs retention (memorize the menu)
+
+Set per log group: **1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653 days, or Never expire**.
+
+**Default if not set = "Never expire"** → cost trap. AWS Config managed rule `cw-loggroup-retention-period-check` flags log groups without retention.
+
+### Native log destinations by AWS service (memorize)
+
+Several exam questions hinge on knowing where each AWS service can log natively. If an answer choice tells the load balancer to log to CloudWatch Logs, it's wrong on construction.
+
+| Service | Native log destination(s) |
+|---|---|
+| **ELB (ALB/NLB/CLB) access logs** | **S3 only** |
+| ELB connection logs (NLB) | S3 only |
+| CloudFront standard access logs | S3 |
+| CloudFront real-time logs | Kinesis Data Streams |
+| S3 server access logs | Another S3 bucket |
+| CloudTrail | S3 (standard) + optionally CloudWatch Logs |
+| VPC Flow Logs | CloudWatch Logs, S3, or Kinesis Data Firehose |
+| Transit Gateway flow logs | CloudWatch Logs, S3, or Firehose |
+| Route 53 Resolver query logs | CloudWatch Logs, S3, or Firehose |
+| API Gateway execution logs | CloudWatch Logs |
+| API Gateway access logs | CloudWatch Logs or Firehose |
+| Lambda function logs | CloudWatch Logs (automatic via exec role) |
+| RDS / Aurora DB engine logs | CloudWatch Logs (when configured) |
+| WAF logs | S3, CloudWatch Logs, or Firehose |
+| Network Firewall logs | S3, CloudWatch Logs, or Firehose |
+| GuardDuty findings | EventBridge / Security Hub (event stream) |
+| EKS audit logs | CloudWatch Logs |
+| Config history/snapshots | S3 (notifications via SNS) |
+| Security Hub findings | EventBridge / Security Lake |
+
+**Mental model**:
+- **Edge/network access logs** (ELB, CloudFront standard, S3 access) → usually **S3 only**
+- **Flow logs / audit logs** → usually **flexible** (CW Logs, S3, or Firehose)
+- **API Gateway / Lambda / RDS** → **CloudWatch Logs**
+- **CloudTrail** → S3 + optional CW Logs
+
+### CloudWatch metric filters — operate ONLY on CloudWatch Logs
+
+CloudWatch metric filters run on **log groups in CloudWatch Logs**. They cannot read from S3, OpenSearch, Kinesis, or anywhere else.
+
+**Consequence for S3-stored logs (ELB, CloudFront, etc.)**: you cannot use metric filters directly. To derive metrics from S3 logs:
+
+```
+S3 (logs) → Athena query (scheduled by EventBridge) → Lambda → cloudwatch:PutMetricData → CloudWatch custom metric
+```
+
+Or, if you need *near-real-time* metrics from S3-destined logs, ship them into CW Logs first (Lambda or Firehose), then use metric filters on the CW Logs log group.
+
+### Two-tier log architecture for long retention
+
+For audit/compliance needs beyond ~2 years, combine CloudWatch Logs (hot) + S3 (warm) + Glacier (cold):
+
+```
+App / EC2 / ECS / Lambda
+    ↓ (CloudWatch Agent or SDK, continuous)
+CloudWatch Logs   (~30-90 days, hot, searchable via Logs Insights)
+    ↓ (Subscription Filter → Kinesis Data Firehose, or scheduled S3 export task)
+Amazon S3         (~1-3 years, warm, queryable via Athena)
+    ↓ (S3 Lifecycle → Glacier Flexible Retrieval / Deep Archive)
+S3 Glacier        (long-term compliance archive)
+```
+
+For ≤1 year retention, CloudWatch Logs alone is sufficient. For 7+ year compliance, layer in S3 + Glacier.
+
 ### CloudWatch Alarms
 
 - **Standard Alarms**: Based on metrics
@@ -206,7 +298,9 @@ For prevention (different from detection): SCP denying `cloudtrail:StopLogging`,
 - Alert on security group changes
 - Monitor IAM policy changes
 
-📖 **Documentation**: [CloudWatch User Guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/)
+📖 **Documentation**: [CloudWatch User Guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/)  
+📖 **CloudWatch Agent**: [Installing the CloudWatch agent](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html)  
+📖 **Log retention**: [Change log retention](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/SettingLogRetention.html)
 
 ---
 

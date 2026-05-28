@@ -80,6 +80,108 @@ This domain covers identity management, access control, and federation in AWS.
 - Rotate credentials regularly
 - Remove unused credentials
 
+### IAM Condition Keys (high-frequency exam topic)
+
+Conditions are typed — the operator must match the value type. Top mismatch trap: `DateLessThan` with a numeric seconds value (always wrong unless seconds are interpreted as epoch).
+
+#### Operator–value type pairings
+
+| Operator family | Examples | Value type |
+|---|---|---|
+| **String** | `StringEquals`, `StringLike`, `StringNotEquals` | String, wildcards (`*`, `?`) with `StringLike` |
+| **Numeric** | `NumericEquals`, `NumericLessThan`, `NumericGreaterThanEquals` | Number |
+| **Date** | `DateEquals`, `DateLessThan`, `DateGreaterThan` | ISO 8601 (`"2026-12-31T00:00:00Z"`) or epoch seconds |
+| **Bool** | `Bool` | `"true"` / `"false"` (strings) |
+| **IpAddress** | `IpAddress`, `NotIpAddress` | CIDR (`"203.0.113.0/24"`) |
+| **Arn** | `ArnEquals`, `ArnLike` | ARN with optional wildcards |
+| **Null** | `Null` | `"true"` (key absent) or `"false"` (key present) |
+
+#### High-yield global condition keys
+
+| Condition key | Operator | Purpose |
+|---|---|---|
+| `aws:MultiFactorAuthPresent` | Bool | Request used MFA |
+| `aws:MultiFactorAuthAge` | Numeric (seconds) | How long ago MFA was performed |
+| `aws:SourceIp` | IpAddress | Caller IP address |
+| `aws:SourceVpc` | String | Caller's VPC ID |
+| `aws:SourceVpce` | String | Caller's VPC Endpoint ID |
+| `aws:RequestedRegion` | String | Region of API call (great for SCPs) |
+| `aws:SecureTransport` | Bool | Request over HTTPS (TLS) |
+| `aws:PrincipalOrgID` | String | Caller's AWS Organizations ID |
+| `aws:PrincipalOrgPaths` | StringLike | Caller's OU path |
+| `aws:PrincipalTag/<key>` | String | Tag on the calling principal (ABAC) |
+| `aws:ResourceTag/<key>` | String | Tag on the target resource (ABAC) |
+| `aws:RequestTag/<key>` | String | Tag included in a `Create*` request (ABAC) |
+| `aws:SourceArn` / `aws:SourceAccount` | Arn / String | Service-side caller (confused deputy prevention) |
+| `aws:ViaAWSService` | Bool | Request made by service on user's behalf |
+| `aws:CalledVia` | StringLike | Specific intermediary AWS service |
+| `aws:CurrentTime` | Date | Time of request |
+| `aws:EpochTime` | Numeric / Date | Time in epoch seconds |
+| `kms:ViaService` | String | Which AWS service is using the KMS key |
+| `s3:x-amz-server-side-encryption` | StringEquals | Encryption header on `PutObject` |
+| `s3:x-amz-server-side-encryption-aws-kms-key-id` | StringEquals | Specific KMS key ID required for upload |
+
+#### Common policy patterns
+
+**Require MFA, max 3-hour MFA-authenticated session**:
+```json
+"Condition": {
+  "Bool":             { "aws:MultiFactorAuthPresent": "true" },
+  "NumericLessThan":  { "aws:MultiFactorAuthAge": "10800" }
+}
+```
+
+**Deny non-HTTPS requests** (S3 bucket policy example):
+```json
+{
+  "Effect": "Deny",
+  "Action": "s3:*",
+  "Principal": "*",
+  "Resource": ["arn:aws:s3:::bucket/*", "arn:aws:s3:::bucket"],
+  "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+}
+```
+
+**Restrict KMS usage to specific VPC endpoint**:
+```json
+"Condition": {
+  "StringNotEquals": { "aws:sourceVpce": "vpce-1234abcdf5678c90a" }
+}
+```
+
+**Confused deputy prevention** (resource-based policy for service trust):
+```json
+"Condition": {
+  "StringEquals": { "aws:SourceAccount": "111122223333" },
+  "ArnLike":      { "aws:SourceArn":     "arn:aws:s3:::my-bucket" }
+}
+```
+
+**Enforce SSE-KMS on S3 uploads**:
+```json
+{
+  "Effect": "Deny",
+  "Action": "s3:PutObject",
+  "Resource": "arn:aws:s3:::bucket/*",
+  "Condition": {
+    "StringNotEquals": {
+      "s3:x-amz-server-side-encryption": "aws:kms"
+    }
+  }
+}
+```
+
+### `MaxSessionDuration` vs `aws:MultiFactorAuthAge` (don't confuse)
+
+| | `MaxSessionDuration` (role attribute) | `aws:MultiFactorAuthAge` (condition key) |
+|---|---|---|
+| **Where set** | On the IAM role itself | In a policy `Condition` block |
+| **What it limits** | Max duration of `AssumeRole` sessions | How recently MFA must have been performed |
+| **Default** | 1 hour | N/A — only if condition added |
+| **Max value** | 12 hours | Any number of seconds |
+
+`MaxSessionDuration` is NOT a condition key and cannot appear in a policy condition. Common distractor.
+
 ### Key Documentation Links
 
 - [Security best practices and use cases in IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices-use-cases.html)
@@ -185,6 +287,153 @@ How to enable:
 1. Create role in target account with trust policy
 2. Grant assume role permission in source account
 3. Use STS AssumeRole to get temporary credentials
+
+### Service Roles & `iam:PassRole` (high-frequency exam pattern)
+
+A **service role** is an IAM role that an AWS service assumes to perform actions on your behalf. The pattern shows up everywhere:
+
+| Service | What the role does |
+|---|---|
+| **CloudFormation** | Creates/updates/deletes stack resources |
+| **Lambda** | Function execution: write logs, access other AWS services |
+| **EC2 instance profile** | Apps on the instance get temporary credentials |
+| **ECS task role** | Task containers get AWS API access |
+| **CodeBuild service role** | Build can fetch artifacts, push images, write logs |
+| **Glue job role** | Job reads/writes S3, accesses Data Catalog, decrypts with KMS |
+| **AWS Backup role** | Service can snapshot resources |
+| **Auto Scaling service-linked role** | ASG can manage EC2 lifecycle |
+
+#### Trust policy vs Permissions policy — distinct purposes (commonly confused)
+
+| Policy | Question it answers | Example |
+|---|---|---|
+| **Trust policy** | **Who can assume this role?** | `"Principal": { "Service": "cloudformation.amazonaws.com" }` |
+| **Permissions policy** | **What can the role do once assumed?** | `"Action": ["ec2:RunInstances", "iam:CreateRole", ...]` |
+
+The role needing to **act on** many services goes in the *permissions* policy. The role being **assumed by** many services goes in the *trust* policy. **Don't conflate them.** "Composite principal containing every AWS service that might need deployment permissions" is the classic conflation trap — wrong answer pattern.
+
+Composite principals in trust policies are **legitimate when**: multiple services genuinely need to assume the same role (rare). They're **wrong when**: the question is about granting the role permission to act on multiple services (that's the permissions policy's job).
+
+#### `iam:PassRole` vs `sts:AssumeRole` — DO NOT confuse
+
+Both involve "using a role" but at different lifecycle points:
+
+| | `iam:PassRole` | `sts:AssumeRole` |
+|---|---|---|
+| **Who needs it** | User/principal **handing** a role to a service | Principal **becoming** a role |
+| **Controls** | "Can I tell AWS service X to use role R?" | "Can I take on role R's permissions?" |
+| **Typical scenario** | `lambda:CreateFunction --role arn:...:role/LambdaRole` | `aws sts assume-role --role-arn arn:...:role/DevAdmin` |
+| **Where defined** | Identity policy on the user/role doing the passing | Identity policy on assumer + trust policy on target |
+| **Key partner condition** | `iam:PassedToService` (lock to a specific service) | `sts:ExternalId` (confused deputy prevention) |
+
+**Question decoder**:
+- "Delegate role to an AWS service" / "Lambda must run as role X" / "EC2 instance profile" → **`iam:PassRole`**
+- "User assumes a role" / "cross-account access" / "federation" → **`sts:AssumeRole`**
+
+#### `iam:PassRole` — required scenarios
+
+When a user hands a role to a service ("here, use this role"), the user needs `iam:PassRole`. The service then assumes the role.
+
+Required for:
+- `CreateStack --role-arn` (CloudFormation)
+- `CreateFunction` with execution role (Lambda)
+- `RunInstances` with instance profile (EC2)
+- `CreateService` with task role (ECS)
+- Any operation where the user assigns a role to a service to use
+
+**Privilege escalation risk**: a user with broad `iam:PassRole` can pass a powerful role to a service they control (e.g., create a Lambda with admin role and invoke it). Mitigate with the **`iam:PassedToService` condition**:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "iam:PassRole",
+  "Resource": "arn:aws:iam::*:role/CFN-DeploymentRole",
+  "Condition": {
+    "StringEquals": { "iam:PassedToService": "cloudformation.amazonaws.com" }
+  }
+}
+```
+
+This lets the user pass the role only to CloudFormation, not to any other service they might use to abuse it.
+
+### IAM Paths — directory-like grouping of IAM resources (Skill 4.2.1)
+
+IAM resources (users, roles, policies, groups) support **paths**, which act like directories in a file hierarchy. Default path is `/`.
+
+Set at create time:
+```bash
+aws iam create-role --role-name MyRole --path /platform/
+```
+
+Path appears in the ARN:
+```
+arn:aws:iam::123456789012:role/platform/MyRole
+arn:aws:iam::123456789012:role/product/DataPipelineRole
+arn:aws:iam::123456789012:role/security/AuditorRole
+```
+
+#### Why paths matter for the exam
+
+- **Structural grouping** — team encoded in the ARN itself; can't be untagged or stripped accidentally
+- **Policy targeting** — write policies that match by path with `ArnLike` / `ArnNotLike`:
+  ```json
+  "Condition": {
+    "ArnNotLike": {
+      "aws:PrincipalArn": "arn:aws:iam::*:role/platform/*"
+    }
+  }
+  ```
+- **Listing/filtering** — `iam:ListRoles --path-prefix /platform/`
+- **Org-wide guardrails** — pair IAM paths with SCPs for centralized control across hundreds of accounts
+
+#### Paths vs tags for grouping IAM resources
+
+| Approach | Pros | Cons |
+|---|---|---|
+| **Paths** | Structural, in the ARN, can't be accidentally removed, queryable via path-prefix | Set at create time only — can't change after creation (without delete + recreate) |
+| **Tags** | Mutable, support arbitrary key/value | Tagging discipline required, easy to forget; `aws:ResourceTag` conditions don't apply cleanly to all IAM actions (e.g., `iam:PassRole` evaluates on the role ARN, not on tags attached to it) |
+
+For SCS-C03: when the question asks about **grouping IAM ROLES by team** for organizational policy targeting, paths are usually the right answer over tags.
+
+### SCP vs Permissions Boundary — when to use each
+
+Both restrict permissions, but they operate at different scopes:
+
+| Control | Scope | Granularity | Best for |
+|---|---|---|---|
+| **SCP** | Org / OU / account-wide | Affects ALL principals in the account/OU | **Centralized preventive guardrails across many accounts** |
+| **Permissions boundary** | Per-role / per-user | Affects only that one principal | Delegated admin (a junior admin creates roles but the boundary caps what they can grant) |
+
+**Question phrasing → which to pick**:
+- "Hundreds of accounts" / "across the organization" / "centralized control" → **SCP**
+- "Delegate IAM admin to a team but cap what they can grant" → **Permissions boundary**
+- "Prevent member account root users from doing X" → **SCP** (boundaries don't affect root)
+- "Limit one specific role's max permissions" → **Permissions boundary**
+
+**Don't confuse SCP behavior**:
+- SCPs are filters, not grants — they cap maximum permissions
+- They affect ALL principals in member accounts (including root)
+- They do NOT affect the management account
+- They do NOT affect service-linked roles
+
+#### CloudFormation service role — the textbook pattern
+
+**Problem**: by default, CFN executes stack operations with the **caller's permissions**. If team members have different IAM permissions, the same stack deploys for some and fails for others.
+
+**Solution**: dedicated CloudFormation service role.
+
+1. Create role with trust on `cloudformation.amazonaws.com`
+2. Attach permissions policies scoped to the **AWS resources CFN must create/update/delete** (EC2, IAM, Lambda, etc.) — NOT the CloudFormation stack ARNs themselves
+3. Update each stack to use the role (`--role-arn` or `RoleARN` parameter)
+4. Grant team members only `cloudformation:*` and `iam:PassRole` for that specific service role
+
+Result: uniform deployment behavior regardless of who triggers. Centralized, least-privilege, auditable.
+
+**Common trap distractors** for this pattern:
+- "Composite principal with all needed services" → wrong (trust vs permissions confusion)
+- "Scope policies to CFN stack ARNs" → wrong (need to scope to the underlying service resources)
+- "Use Service Catalog instead" → over-engineering; doesn't fix the permission issue, just relocates it
+- "Grant team members IAM admin so they can do anything" → violates least privilege
 
 ### Confused Deputy Problem (Skill 4.2.1)
 

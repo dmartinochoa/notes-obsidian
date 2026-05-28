@@ -197,6 +197,30 @@ This domain covers data protection in transit, at rest, and management of confid
 - **Import external certificates** (you manage renewal)
 - **Private CA**: ACM Private Certificate Authority
 
+### Certificate exportability — the exam-critical distinction
+
+| Cert origin | Private key exportable? | Where can you install it? |
+|---|---|---|
+| **ACM-issued (Amazon-issued, public)** | ❌ **No** — locked inside ACM | Only on AWS-managed services that integrate with ACM: ALB, NLB, CloudFront, API Gateway, App Runner, ELB Classic, Cognito custom domains, Elastic Beanstalk |
+| **Imported third-party cert** | ✅ Yes — you already have the private key | Anywhere — ALB *and* EC2, on-prem, containers, anywhere a `.pem` works |
+| **ACM Private CA-issued end-entity cert** | ✅ Yes (`ExportCertificate` API) | Anywhere internal. Designed for backend services, mTLS, IoT devices |
+| **Self-signed** | ✅ Yes | Anywhere — but no public trust (browser warnings) |
+
+**Key exam trap**: any question that asks you to install the *same* cert on an ALB *and* on EC2 instances cannot use an ACM-issued cert (non-exportable). You need either:
+- **Imported third-party cert** → use on both
+- **ACM-issued cert on ALB + a different cert on EC2** (Private CA-issued or self-signed both work for the backend hop, since ALB doesn't validate backend chains — see below)
+
+### End-to-end TLS patterns (client → ALB → EC2)
+
+| Pattern | Front (client → ALB) | Back (ALB → EC2) | When to use |
+|---|---|---|---|
+| **TLS terminate at ALB only** | ACM-issued public cert | HTTP (plaintext) | When backend hop is private and compliance allows; cheapest, lowest CPU |
+| **Re-encrypt to backend** | ACM-issued public cert | EC2 with self-signed or Private CA cert | Most common production pattern. ALB does NOT validate backend cert chain, so self-signed works. |
+| **Same imported cert end-to-end** | Imported 3rd-party cert | Same cert installed on EC2 | The pattern enforced when answer choices restrict you (per the exam question above) |
+| **Private CA for backend** | ACM-issued public cert | AWS Private CA cert on EC2, deployed via SSM, auto-renewable | Cleanest production pattern: separate rotation cycles, internal trust hierarchy |
+
+**Key nuance**: **ALB does NOT validate the backend certificate chain**. When ALB connects to EC2 over HTTPS, it negotiates TLS but accepts whatever cert the backend presents (signed, self-signed, expired — encryption still happens, no trust check). The cert trust requirement only applies on the **client → ALB** hop (browsers validate). This means the "self-signed on EC2" answer is only wrong when self-signed is also used on the public-facing ALB.
+
 ### Integration Points
 
 - CloudFront
@@ -204,7 +228,9 @@ This domain covers data protection in transit, at rest, and management of confid
 - API Gateway
 - Elastic Beanstalk
 
-📖 **Documentation**: [ACM User Guide](https://docs.aws.amazon.com/acm/latest/userguide/)
+📖 **Documentation**: [ACM User Guide](https://docs.aws.amazon.com/acm/latest/userguide/)  
+📖 **Importing certs**: [Importing certificates into ACM](https://docs.aws.amazon.com/acm/latest/userguide/import-certificate.html)  
+📖 **ALB HTTPS listener**: [Create HTTPS listener](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html)
 
 ---
 
@@ -253,6 +279,54 @@ This domain covers data protection in transit, at rest, and management of confid
 | **SSE-KMS** | AWS KMS | You control policy |
 | **SSE-C** | Customer-provided | Customer |
 | **Client-side** | Customer | Customer |
+
+## 🔐 Client-side encryption library family (high-frequency exam topic)
+
+AWS ships multiple client-side encryption libraries, each tailored to a specific storage target. They all do envelope encryption + KMS-backed key wrapping + signing, but differ in **structural awareness** of the data they protect.
+
+| Library | Tailored for | Key trait |
+|---|---|---|
+| **AWS Encryption SDK** | Arbitrary application data (strings, files, byte streams) | Produces opaque ciphertext blob; no schema awareness |
+| **AWS Database Encryption SDK for DynamoDB** *(formerly DynamoDB Encryption Client, renamed 2023)* | DynamoDB items | **Attribute-aware** — encrypts individual attributes; leaves primary key plaintext so the table remains queryable |
+| **Amazon S3 Encryption Client** (in AWS SDKs) | S3 objects | Object-stream-aware; integrates with `s3:PutObject` / `s3:GetObject` flows |
+
+### Why the DynamoDB Encryption Client (not Encryption SDK) for DynamoDB
+
+If you used the general AWS Encryption SDK on a DynamoDB item, you'd encrypt the whole item as a blob and **lose**:
+- Query by partition / sort key (now ciphertext)
+- GSI / LSI queries
+- Conditional updates (DynamoDB can't compare to ciphertext)
+- Filtering in Scan/Query results
+
+The DynamoDB Encryption Client:
+- Encrypts **only the attributes you mark sensitive**, leaving primary key + selected attributes plaintext for querying
+- **Signs each item** so tampering is detected per-item on read
+- Adds two reserved attributes per item: `*amzn-ddb-map-sig*` (signature) and `*amzn-ddb-map-desc*` (material description)
+
+### End-to-end protection + tamper detection — answer decoder
+
+| Phrasing in question | Points to |
+|---|---|
+| "Protects from point of creation until storage" / "end-to-end" | **Client-side encryption** (in the app, before transit) |
+| "Detect unauthorized modification" / "verify integrity" | **Cryptographic signing** (NOT Streams, NOT PITR) |
+| "DynamoDB" + client-side + signing | **AWS Database Encryption SDK / DynamoDB Encryption Client** |
+| Any storage + client-side + signing | **AWS Encryption SDK** |
+| S3 + client-side encryption | **S3 Encryption Client** in the SDK |
+| Server-side encryption only | SSE-S3 / SSE-KMS / DynamoDB SSE — does **not** satisfy "end-to-end" |
+
+### PITR vs Streams vs Signing — disambiguate
+
+| Feature | What it does | What it does NOT do |
+|---|---|---|
+| **DynamoDB PITR** | Continuous backup, restore to any second within last 35 days | Detect or prove tampering — only enables *recovery* |
+| **DynamoDB Streams** | Change data capture — events for each modification | Provide cryptographic integrity; can be disabled with sufficient IAM perms |
+| **Item signing** (Database Encryption SDK) | Cryptographic per-item signature; tamper-proof on read | Restore data; you *detect* tampering, not recover from it |
+| **CloudTrail data events for DynamoDB** | Audit log of API calls (`GetItem`, `PutItem`, etc.) | Verify item-level cryptographic integrity directly |
+
+Defense in depth combines them; but for "detect unauthorized changes" specifically → **signing**.
+
+📖 **AWS Database Encryption SDK**: [Documentation](https://docs.aws.amazon.com/database-encryption-sdk/latest/devguide/what-is-database-encryption-sdk.html)  
+📖 **AWS Encryption SDK**: [Documentation](https://docs.aws.amazon.com/encryption-sdk/latest/developer-guide/introduction.html)
 
 ### S3 Bucket Keys
 
@@ -409,6 +483,40 @@ This domain covers data protection in transit, at rest, and management of confid
 - **Cross-account backup**: Copy backups to another account for ransomware protection
 - **Cross-Region backup**: Copy backups to another region for disaster recovery
 - **Backup Audit Manager**: Audit backup compliance
+
+#### Schedule expressions — rate vs cron (cross-service concept)
+
+Backup plans (and EventBridge, Lambda schedules, DLM, Step Functions, Glue, State Manager, etc.) accept two schedule expression formats:
+
+| Type | Format | Use for |
+|---|---|---|
+| **Rate** | `rate(value unit)` — e.g. `rate(12 hours)`, `rate(7 days)` | Fixed periodic intervals counted from creation time. "Every N units." |
+| **Cron** | `cron(min hr day-of-month month day-of-week year)` — **6 fields**, UTC | Calendar-specific times. "On these specific days/times." |
+
+**AWS cron specifics**:
+- **6 fields** (Unix cron has 5) — AWS adds a `year` field
+- All times are **UTC**
+- Cannot specify both `day-of-month` and `day-of-week` — use `?` in whichever you don't care about
+- `*` = every, `,` = list, `-` = range, `/` = increment
+
+**Decoder**:
+
+| Requirement | Expression |
+|---|---|
+| Every 12 hours | `rate(12 hours)` |
+| Every 30 days | `rate(30 days)` |
+| Daily at 3 AM UTC | `cron(0 3 * * ? *)` |
+| Sundays at midnight | `cron(0 0 ? * SUN *)` |
+| 1 AM on the 10th and 20th of every month | `cron(0 1 10,20 * ? *)` |
+| First day of every month at 6 AM | `cron(0 6 1 * ? *)` |
+| Every weekday at 9 AM | `cron(0 9 ? * MON-FRI *)` |
+
+**Common trap**: question requires backups "on the 10th and 20th" — rate expressions cannot target specific calendar dates. Must use cron.
+
+#### When NOT to use AWS Backup for DynamoDB
+
+- **Continuous restore** within last 35 days → use **Point-in-Time Recovery (PITR)** instead. PITR is *not* a substitute for scheduled backups with long retention — it gives you any-second restore within 35 days but doesn't satisfy "retain monthly backups for 4 months" requirements.
+- **Data transfer between storage systems** → use **AWS DataSync**, not Backup. DataSync is for moving data (NFS/SMB/HDFS ↔ S3/EFS/FSx), not creating backup plans.
 
 ### Amazon Data Lifecycle Manager
 

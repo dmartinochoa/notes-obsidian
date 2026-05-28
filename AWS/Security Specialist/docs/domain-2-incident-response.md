@@ -115,22 +115,68 @@ This domain covers incident response planning, execution, and security event han
 
 ## 🖥️ EC2 Incident Response
 
-### Isolation Steps
+### Isolation Steps (modern AWS IR best practice — "least operational overhead")
 
-1. **Don't terminate** - preserve evidence
-2. **Isolate** - modify security group to deny all traffic (attach "quarantine" SG)
-3. **Snapshot** - create EBS snapshots for forensics
-4. **Memory capture** - if possible (requires agent)
-5. **Tag** - mark as compromised
-6. **Investigate** - use Detective, CloudTrail, VPC Flow Logs
+1. **Don't terminate** - preserve evidence. **Enable termination protection** to prevent accidents.
+2. **Capture metadata + tag as compromised** (e.g. `Status=Compromised`, `IncidentTicket=INC-1234`)
+3. **Memory capture FIRST** if you need volatile RAM — use **SSM Run Command** to execute a memory acquisition script while the instance is still running. Stopping the instance loses RAM.
+4. **Detach from Auto Scaling Group** with `--should-decrement-desired-capacity` (or suspend ASG processes) — otherwise ASG replaces it
+5. **Deregister from ELB target groups** so it stops serving traffic
+6. **Isolate via Security Group** — replace SGs with a "forensic" SG (deny all inbound/outbound, optionally allow outbound to SSM Interface Endpoints so investigation tools still work)
+7. **Snapshot EBS volumes** — automate via **State Manager association** with auto-tagging for consistency
+8. **Investigate** — Detective, CloudTrail, VPC Flow Logs, custom forensic workflows
+9. **Terminate** only after evidence is preserved
+
+### Three-tool SSM pattern for least-overhead IR (memorize)
+
+For an EBS-backed EC2 with SSM Agent installed, the modern AWS-native IR pattern uses Systems Manager throughout:
+
+| Concern | Tool | Why |
+|---|---|---|
+| **Operational state** (keep online, isolate, prevent replacement) | SG modification + termination protection + ASG detach + ELB deregister | Instant, reversible, no network reconfiguration |
+| **Volatile memory** (RAM) | **SSM Run Command** executing memory collection script | Captures RAM before stop; agent-based; no SSH keys; CloudTrail-audited |
+| **Non-volatile storage** (disk) | **SSM State Manager association** for tagged EBS snapshot | Automated, repeatable, consistent tagging — eliminates manual snapshot errors |
+
+All three lean on SSM = unified audit trail + no bespoke orchestration.
+
+### SG isolation vs NACL/subnet migration (exam-critical distinction)
+
+Both work for isolation. SCS-C03 prefers **SG modification** when the question says "least operational overhead":
+
+| Aspect | SG modification | NACL + subnet migration |
+|---|---|---|
+| Speed | Instant (SG change takes effect immediately) | Seconds–minutes (route table, ENI changes) |
+| Network reconfiguration | None | Yes (subnet, route tables, DNS) |
+| Rollback complexity | Re-attach original SG | Reverse subnet migration |
+| Connectivity disruption | Low | High (mid-migration instance loses network) |
+| Preserves SSM access | Yes (if SG allows outbound to SSM Interface Endpoints) | May break unless SSM endpoints exist in isolation VPC |
+
+NACL/subnet isolation is valid for **defense-in-depth** but adds operational overhead. Don't pick it when the question rewards simplicity.
 
 ### Forensic Best Practices
 
 - Maintain forensic account (separate, isolated)
 - Use cross-account IAM roles for access
-- Preserve chain of custody
-- Document all actions with timestamps
-- Never modify evidence directly
+- Preserve chain of custody (S3 Object Lock for evidence)
+- Document all actions with timestamps (CloudTrail covers SSM actions automatically)
+- Never modify evidence directly — always work from snapshots
+
+### "Least operational overhead" decoder (general exam skill)
+
+When you see this phrase, eliminate answers involving:
+- Subnet/VPC migration
+- Custom Lambda orchestration (when a managed service exists)
+- Manual snapshot/tag/copy procedures
+- Bastion hosts (when SSM works)
+- SSH/RDP key management
+- Cron-based batch processes
+
+And **lean toward** answers using:
+- Systems Manager (Run Command, State Manager, Automation, Session Manager)
+- EventBridge for triggering
+- AWS Backup for managed snapshot lifecycle
+- Security Hub automation rules
+- SCPs / Config conformance packs for org-wide guardrails
 
 ---
 
