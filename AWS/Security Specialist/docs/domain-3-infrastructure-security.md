@@ -436,13 +436,24 @@ CloudFront uses three separate policy types. Picking the wrong one is a classic 
 
 | Goal | Policy |
 |---|---|
-| Forward an **Authorization** / **JWT** header to origin (without per-user cache fragmentation) | **Origin Request Policy** — `Managed-AllViewerExceptHostHeader` is the canonical AWS-managed choice |
+| **Forward the Authorization header to origin** | **Cache Policy** — Authorization is NOT supported in Origin Request Policy (returns HTTP 400). MUST be in Cache Policy. |
 | Forward **signed cookies** to origin so backend can validate them | **Origin Request Policy** (unless you want per-user caching, then Cache Policy) |
+| Forward most other headers to origin without cache impact | **Origin Request Policy** |
 | Cache differently per **device type** / per **language** / per **A-B test cookie** | **Cache Policy** — header/cookie included intentionally to fragment cache |
 | Add **HSTS** / **X-Frame-Options: DENY** / **CSP** to all responses | **Response Headers Policy** |
 | Vary the cache by user identity (per-user pages) | **Cache Policy** with the identifying header |
 
-**Common trap**: A question asks "forward the Authorization header to origin." The Cache Policy *can* technically forward it (anything in the Cache Policy is forwarded to origin), but it also fragments your cache by Authorization value — meaning every user's JWT becomes a unique cache entry and cache hit rate collapses. The correct choice is **Origin Request Policy** — forwards without polluting the cache key.
+### The Authorization header rule (IMPORTANT — special case)
+
+**`Authorization` is NOT supported in Origin Request Policies.** If you try to include it, CloudFront returns HTTP 400.
+
+**Why AWS enforces this**: it's a security feature. If Authorization could be forwarded without being in the cache key, CloudFront could cache an authenticated response and serve it to a different user — auth bypass. By forcing Authorization into the cache key (via Cache Policy), every user's response gets a unique cache entry. Lower cache hit rate is the trade-off for security.
+
+| Forward Authorization to origin? | Use Cache Policy (MANDATORY) |
+| Cache hit rate concern? | Accept it — it's the price of correctness for auth-gated content |
+| Want different behavior? | Move auth logic off CloudFront (e.g., ALB+Cognito, Lambda@Edge for token validation) |
+
+Same restriction applies to a few other security-sensitive headers — when in doubt, the rule is "if it identifies the user, it goes in Cache Policy."
 
 📖 **Documentation**: [CloudFront Security](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/SecurityAndPrivacy.html)  
 📖 **Policies**: [Using cache and origin request policies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/working-with-policies.html)

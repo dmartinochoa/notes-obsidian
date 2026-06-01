@@ -207,6 +207,80 @@ Root
 
 ---
 
+## 🛡️ AWS Security Hub — the aggregator (Skill 6.3.1)
+
+Security Hub is the **central aggregator** of security findings across AWS services. The direction of data flow is critical to know for the exam — most other services SEND findings to Security Hub; only a few RECEIVE from it.
+
+### What You Need to Know
+
+- **Aggregates findings** from multiple AWS services + third-party tools in a standard format (**ASFF** — AWS Security Finding Format)
+- **Security standards**: AWS Foundational Security Best Practices (FSBP), CIS AWS Foundations Benchmark, PCI DSS, NIST 800-53
+- **Automation rules**: native rules that update or suppress findings based on criteria (replaces some custom EventBridge logic)
+- **Regional service** — NOT global. Cross-region aggregation is opt-in (designate one **aggregation region**)
+- **Cross-account aggregation** via delegated administrator in Organizations
+- **Does NOT retroactively detect findings** generated before it was enabled
+
+### Findings flow direction (memorize this — high-frequency exam trap)
+
+```
+                                ┌──────────────────┐
+                                │                  │
+GuardDuty ─────────────────────►│                  │
+Inspector ─────────────────────►│                  │
+Macie ─────────────────────────►│                  │
+IAM Access Analyzer ───────────►│                  │
+Firewall Manager ──────────────►│  SECURITY HUB    │──► Detective (investigation pivot)
+Patch Manager ─────────────────►│  (aggregator)    │──► Trusted Advisor (FSBP results)
+AWS Config ────────────────────►│                  │──► EventBridge (automation)
+AWS Health ────────────────────►│                  │──► Security Lake (OCSF format)
+Third-party tools (ASFF) ──────►│                  │
+                                └──────────────────┘
+```
+
+| Service | Direction | Notes |
+|---|---|---|
+| **GuardDuty** | → SH | Threat detection findings |
+| **Inspector** | → SH | Vulnerability findings (CVEs) |
+| **Macie** | → SH | Sensitive data findings |
+| **IAM Access Analyzer** | → SH | External access findings |
+| **Firewall Manager** | → SH | When Shield Advanced not protecting, or WAF policy non-compliant, or attack identified |
+| **Patch Manager** | → SH | Patch compliance findings |
+| **AWS Config** | → SH | Config rule compliance findings |
+| **AWS Health** | → SH | Health events |
+| **Third-party tools** | → SH | Via ASFF integration |
+| **Amazon Detective** | ← SH | RECEIVES findings (pivot from GuardDuty/SH into Detective for investigation) |
+| **Trusted Advisor** | ← SH | RECEIVES Security Hub's FSBP check results |
+| **EventBridge** | ← SH | Receives finding events for automation |
+| **Security Lake** | ← SH | Receives findings in OCSF format |
+
+### The classic exam trap
+
+**Wrong claim pattern**: "Detective sends findings to Security Hub" or "Trusted Advisor sends findings to Security Hub."
+
+**Reality**: Both Detective and Trusted Advisor are **downstream** of Security Hub:
+- **Detective** is an investigation tool that lets you pivot from a SH/GuardDuty finding into a graph-based exploration. It uses CloudTrail, VPC Flow Logs, and EKS audit logs as its DATA SOURCES — but it does NOT generate or send findings to Security Hub.
+- **Trusted Advisor** receives Security Hub's FSBP check results to surface in its Security pillar. Trusted Advisor itself surfaces "best practice" recommendations but those don't flow into Security Hub.
+
+### Firewall Manager → Security Hub specifics
+
+Memorize: Firewall Manager sends findings to Security Hub automatically (no extra config) when:
+- **Shield Advanced** is not protecting resources that should be
+- **WAF policy** is non-compliant for resources or a web ACL rule
+- An **attack** is identified
+
+### Other Security Hub facts worth knowing
+
+- **Regional, not global** — questions claiming "global service" are wrong
+- **No retroactive detection** — only collects findings generated after enablement
+- **Cross-region aggregation** requires designating an aggregation region explicitly
+- **ASFF (AWS Security Finding Format)** is the standardized JSON format for all findings
+- **Automation rules** can auto-update finding severity, suppress findings, or change workflow status — useful for noise reduction
+- Integrates with **AWS Organizations** for cross-account aggregation via delegated admin
+
+📖 **Documentation**: [Security Hub User Guide](https://docs.aws.amazon.com/securityhub/latest/userguide/what-is-securityhub.html)
+
+---
+
 ## 📋 AWS Audit Manager
 
 ### What You Need to Know

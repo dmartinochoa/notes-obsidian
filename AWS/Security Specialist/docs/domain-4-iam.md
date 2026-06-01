@@ -71,6 +71,102 @@ This domain covers identity management, access control, and federation in AWS.
 | **SCPs** | OUs, Accounts | Restrict maximum permissions |
 | **Session Policies** | STS sessions | Limit session permissions |
 
+### Identity-based vs Resource-based — the structural giveaway
+
+**The single rule: `Principal` element = resource-based policy. Always. No exceptions.**
+
+| Element | Identity-based | Resource-based |
+|---|---|---|
+| `Version` | ✅ | ✅ |
+| `Statement`, `Sid`, `Effect`, `Action`, `Condition` | ✅ | ✅ |
+| `Resource` | ✅ explicit | ⚠️ Sometimes implicit (e.g., S3 bucket policy applies to its bucket) |
+| **`Principal`** (or `NotPrincipal`) | ❌ **NEVER** | ✅ **REQUIRED** |
+
+Why: the principal is **implicit** in an identity-based policy — it's whatever IAM identity the policy is attached to. The resource is implicit in many resource-based policies — it's whatever resource the policy is attached to.
+
+### Three-second elimination for "which policy is correct" questions
+
+1. Read the question — identity-based or resource-based?
+2. Scan options for `"Principal"`:
+   - Question says identity-based + option has `Principal` → ❌ eliminate
+   - Question says resource-based + option lacks `Principal` → ❌ eliminate
+3. Then evaluate logical correctness of remaining options.
+
+This kills at least one option in nearly every "which policy" question on SCS-C03.
+
+### Resource-based policies — where you'll see them
+
+- S3 bucket policy
+- KMS key policy
+- SNS topic policy
+- SQS queue policy
+- Lambda function policy (resource-based, controls who can `lambda:Invoke`)
+- **IAM role trust policy** (technically resource-based — Principal block defines who can `AssumeRole`)
+- Secrets Manager resource policy
+- EFS file system policy
+- ECR repository policy
+- API Gateway resource policy
+- Glacier vault policy
+- Backup vault access policy
+- **VPC endpoint policy** (attached to interface/gateway endpoints)
+
+### VPC Endpoint Policies — runtime action ≠ admin action
+
+A VPC endpoint policy is a resource-based policy that controls **what API calls can flow through the endpoint**. Default endpoint policy = full access; you replace it with a restrictive one.
+
+**Critical trap**: the Action must be the **runtime action of the target service**, NOT EC2 admin actions:
+
+| Action prefix | What it controls |
+|---|---|
+| `ec2:*VpcEndpoint*` | **Managing the endpoint object** (admin actions on the endpoint itself) — wrong for endpoint policy |
+| Service-specific runtime action | **Calling the service THROUGH the endpoint** — correct for endpoint policy |
+
+| Service via VPC endpoint | Runtime action |
+|---|---|
+| **API Gateway** | `execute-api:Invoke` |
+| **S3** | `s3:GetObject`, `s3:PutObject`, etc. |
+| **KMS** | `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey` |
+| **Secrets Manager** | `secretsmanager:GetSecretValue` |
+| **SSM** | `ssm:GetParameter`, `ssm:UpdateInstanceInformation`, etc. |
+| **DynamoDB** | `dynamodb:GetItem`, `dynamodb:Query`, etc. |
+
+**Answer with `ec2:*VpcEndpoint*` in an endpoint policy = wrong on construction.**
+
+### API Gateway ARN structure (memorize)
+
+```
+arn:aws:execute-api:<region>:<account>:<api-id>/<stage>/<method>/<resource-path>
+```
+
+Wildcard at any level for scope:
+
+| Resource ARN ending | Scope |
+|---|---|
+| `<api-id>/*` | **Entire API** — full access |
+| `<api-id>/prod/*` | All methods/paths in `prod` stage |
+| `<api-id>/prod/GET/*` | GET methods only on `prod` |
+| `<api-id>/prod/GET/users` | Specific GET /users in prod |
+| `*` (account scope) | All APIs in account/region |
+
+"Full access to an API" → `<api-id>/*`. "Two specific APIs" → two distinct API IDs.
+
+### Three-step elimination for endpoint policy questions
+
+1. **Action check** — runtime action of target service (not `ec2:*VpcEndpoint*`)
+2. **Resource scope** — matches what question asks (`/*` for full, method/path for narrower)
+3. **Resource count** — if question says N resources, count DISTINCT IDs (two copies of same ID = one resource)
+
+### VPC endpoint policy vs API resource policy (don't confuse)
+
+API Gateway has TWO places for resource policies that LAYER:
+
+| Policy | Controls | Use |
+|---|---|---|
+| **VPC endpoint policy** | What flows through THIS endpoint | "Endpoint X can call APIs Y and Z" |
+| **API resource policy** | Who can invoke THIS API | "API Y only accepts traffic from VPC endpoint X" (`aws:SourceVpce` condition) |
+
+For full lockdown: combine both (egress control + ingress control).
+
 ### Best Practices
 
 - Enable MFA for all users
@@ -512,31 +608,81 @@ When a 3rd-party service assumes a role in your account, an attacker could trick
 
 ## 🏢 AWS Directory Service (Skill 4.1.3)
 
-### What You Need to Know
+### The four directory options at a glance
 
-- **AWS Managed Microsoft AD**: Full Microsoft Active Directory in AWS
-- **AD Connector**: Proxy to on-premises Active Directory (no caching)
-- **Simple AD**: Samba-based basic AD (limited features)
+| Option | Real AD in AWS? | Needs on-prem AD? | Supports trusts? | When to pick |
+|---|---|---|---|---|
+| **AWS Managed Microsoft AD** | ✅ Yes | Optional | ✅ Yes | Resilient AWS workloads needing AD; integration with on-prem AD via trust; SQL Server / FSx / WorkSpaces at scale |
+| **AD Connector** | ❌ No — it's a PROXY | ✅ Required | ❌ No (proxies can't have trusts) | Lightweight extension of on-prem AD to AWS; don't want another directory; reliable network to on-prem |
+| **Simple AD** | ⚠️ Samba-based (lightweight) | ❌ No | ❌ No | Small workloads, no AD features needed, budget-conscious. Rarely the right exam answer. |
+| **IAM Identity Center identity store** (built-in) | ❌ Not an AD at all | ❌ No | ❌ N/A | Greenfield orgs with no AD, just need SSO to AWS accounts |
 
-### AWS Managed Microsoft AD
+### The "is it a real directory?" elimination test
 
-- Two-way **trust relationships** with on-premises AD
-- Supports **Group Policy**, **Kerberos**, **LDAP**
-- Integrates with: RDS for SQL Server, Amazon WorkSpaces, IAM Identity Center, FSx for Windows
-- **Multi-Region replication** for low-latency access
-- **Automatic patching** and **snapshot backups**
+Before picking any answer mentioning a **trust relationship**, ask:
 
-### AD Connector
+> **"Are there TWO directories here?"**
 
-- **Does not store directory data** in AWS — it is a **proxy/redirector** to on-premises AD
-- **No trust relationship is established** by AD Connector — it just forwards auth requests. Any exam answer that says "create a forest trust with AD Connector" is wrong on construction.
-- Use when you want to use existing on-premises AD for AWS authentication
-- Supports MFA with existing RADIUS server
-- Requires consistent network connectivity (VPN/Direct Connect) — no offline survival
+Trusts are an Active Directory concept — they require two AD instances. AD Connector is a **proxy/pipe**, not a directory. So:
+
+| Setup | Two directories? | Trust possible? |
+|---|---|---|
+| AWS Managed Microsoft AD + on-prem AD | ✅ Yes | ✅ Yes |
+| **AD Connector + on-prem AD** | ❌ No (Connector is a pipe) | ❌ **IMPOSSIBLE — eliminate this answer** |
+| Simple AD + on-prem AD | ⚠️ Simple AD doesn't support trusts anyway | ❌ No |
+
+**Rule**: any answer that pairs "AD Connector" with "create a trust" / "forest trust" / "two-way trust" is wrong on construction. Eliminate without reading further.
+
+### Concrete scenarios — picture each company
+
+#### AWS Managed Microsoft AD
+
+**Picture**: A regional bank, 5,000 employees, on-prem AD in HQ. Migrating SQL Server to RDS, file shares to FSx for Windows, and rolling out WorkSpaces across 3 regions. Workloads MUST keep working if HQ internet dies.
+
+**Solution**: Managed Microsoft AD + 2-way forest trust with on-prem AD.
+- Real AD in AWS = resilient even if on-prem goes down
+- Trust lets on-prem users authenticate to AWS workloads
+- Cross-region replication for performance
+
+**Triggers**: "highly available AD-dependent workloads," "RDS for SQL Server / FSx Windows / WorkSpaces at scale," "IAM Identity Center + on-prem AD," "greenfield AD in AWS"
+
+#### AD Connector
+
+**Picture**: A 200-person law firm. On-prem AD in Chicago office. Wants lawyers to log into Amazon WorkSpaces from home using existing AD credentials. Doesn't want a second directory to manage.
+
+**Solution**: AD Connector.
+- Just a pipe forwarding auth questions to on-prem
+- AWS stores NO user data
+- Cheap, simple
+- If on-prem AD or VPN dies → AWS auth breaks (acceptable for their scale)
+
+**Triggers**: "existing on-prem AD, just extend to AWS," "don't want to manage another directory," "reliable network to on-prem," "on-prem AD stays source of truth"
+
+#### Simple AD
+
+**Picture**: A 30-person startup, no existing AD anywhere. Wants Amazon WorkSpaces for cloud desktops. Needs *some* basic directory. No Windows Server expertise. Doesn't need GPOs, schema extensions, or trusts.
+
+**Solution**: Simple AD (Samba-based).
+- Cheapest AD option
+- Basic auth only
+- Limited features
+
+**Triggers**: "small workload," "no existing AD," "no need for GPOs / trusts / schema extensions." **Rarely the right SCS-C03 answer** — usually a distractor.
+
+#### IAM Identity Center identity store (the "no AD at all" option)
+
+**Picture**: 50-person SaaS startup, fully remote. No on-prem AD. Engineers need SSO into multiple AWS accounts. No Windows infrastructure.
+
+**Solution**: IAM Identity Center with built-in identity store.
+- No AD anywhere
+- Users live in Identity Center's own database
+- SSO portal for AWS accounts
+
+**Triggers**: "greenfield, no AD, no IdP," "just need SSO to AWS accounts," "modern startup, no Windows"
 
 ### IAM Identity Center + on-premises AD (exam-critical)
 
-Two valid architectures:
+When the company HAS on-prem AD and wants IAM Identity Center, two valid architectures:
 
 | Approach | When to use | Trust required? |
 |---|---|---|
@@ -547,15 +693,45 @@ Two valid architectures:
 
 **Don't confuse with ADFS**: ADFS is the older SAML 2.0 pattern (you run an ADFS server on-prem, AWS is configured as the Trusted Relying Party). That's a different mechanism — separate from IAM Identity Center which is AWS-managed SSO.
 
+### Two-step elimination for any "AD federation" question
+
+**Step 1**: Does the answer say **"AD Connector" + "trust"**? → **Eliminate immediately.** AD Connector is a proxy; can't have a trust relationship.
+
+**Step 2**: Among remaining "Managed AD + trust" answers, is it **one-way** or **two-way**?
+- IAM Identity Center context → **two-way** required (needs to enumerate users/groups bidirectionally)
+- One-way → **eliminate**
+
+What survives = the correct answer.
+
+Worked example (the recurring exam question):
+
+| Option | Step 1 | Step 2 | Verdict |
+|---|---|---|---|
+| Managed AD + 2-way trust | ✅ Pass | ✅ Pass | **✅ Correct** |
+| AD Connector + 2-way trust | ❌ Fail (proxy can't trust) | — | ❌ |
+| Managed AD + 1-way trust | ✅ Pass | ❌ Fail (Identity Center needs 2-way) | ❌ |
+| AD Connector + 1-way trust | ❌ Fail | — | ❌ |
+
 ### Quick exam decoder for AD questions
 
-| Phrase | Service / answer |
+| Phrase in question | Service / answer |
 |---|---|
 | "Active Directory" + "trust relationship" | AWS Managed Microsoft AD |
 | "Active Directory" + "no infrastructure to manage" + "proxy" / "redirect" | AD Connector |
 | "IAM Identity Center" + "on-prem AD" + "efficient multi-account" | Managed Microsoft AD + **two-way** forest trust |
 | "SAML" + "ADFS" + "Relying Party" | Old-school SAML federation (not Identity Center) |
 | "Samba-based" / "small directory" / "basic AD features" | Simple AD |
+| "Greenfield, no AD, just SSO to AWS" | IAM Identity Center built-in identity store |
+| "Highly available AD-dependent workloads in AWS" | Managed Microsoft AD |
+
+### Drill — pick the right directory option
+
+For each scenario:
+
+1. Hospital with on-prem AD wants doctors to access AWS WorkSpaces from home using hospital credentials. Reliable Direct Connect. → **AD Connector**
+2. Bank with on-prem AD moving SQL Server to RDS and file shares to FSx. Workloads must survive HQ internet outages. → **Managed Microsoft AD + 2-way trust**
+3. 6-person crypto startup, no existing AD, wants engineers to SSO into 5 AWS accounts. → **IAM Identity Center built-in store**
+4. Movie studio building VFX render farm in AWS with no existing AD. Needs real Microsoft AD for Windows render nodes to domain-join. → **Managed Microsoft AD** (no trust — no on-prem AD exists)
 
 ### Security & Troubleshooting (Skill 4.1.3)
 
