@@ -292,11 +292,15 @@ AWS evaluates policies in this order:
 
 * **Key Rotation:**
 
-    * **AWS Managed:** Auto-rotates every 1 year (cannot delete).
+    * **AWS Managed:** Auto-rotates on AWS schedule (historically ~3 years; newer keys ~1 year). Cannot delete. You don't control the cadence.
 
-    * **Customer Managed (CMK):** Optional auto-rotate every 1 year.
+    * **Customer Managed (CMK), symmetric, AWS-generated material:** Optional auto-rotation, configurable **90–2560 days** (default ~1 year).
 
-    * **Imported Key Material:** NO auto-rotation. You must manually rotate.
+    * **Imported Key Material:** NO auto-rotation. Manual only. BUT: only key type allowing **immediate delete** via DeleteImportedKeyMaterial.
+
+    * **Asymmetric / Custom Key Store / XKS:** NO auto-rotation. Manual only.
+
+    * **Important:** Rotation rotates BACKING key material — old material retained. Does NOT re-encrypt existing data.
 
   
 
@@ -428,11 +432,17 @@ AWS evaluates policies in this order:
 
 | **AWS Owned** | S3 default, Log encryption | Managed by AWS (invisible to you) |
 
-| **AWS Managed** | Created by service (e.g., `aws/s3`) | Auto (1 year), Mandatory |
+| **AWS Managed** | Created by service (e.g., `aws/s3`) | Auto on AWS schedule (~yearly), Mandatory, you don't control |
 
-| **Customer Managed** | Created by you | Optional (1 year), Manual |
+| **Customer Managed (symmetric, AWS-gen)** | Created by you | Optional auto-rotation, **90–2560 days** configurable |
 
-| **Imported Material** | You upload bits | **Manual Only** (No auto-rotation) |
+| **Customer Managed (asymmetric)** | Created by you | **Manual only** (no auto-rotation) |
+
+| **Imported Material** | You upload bits | **Manual only**. Special: **immediate delete** allowed via `DeleteImportedKeyMaterial` |
+
+| **Custom Key Store (CloudHSM)** | Backed by your CloudHSM | **Manual only** |
+
+| **External Key Store (XKS)** | HSM outside AWS | **Manual only** |
 
   
 

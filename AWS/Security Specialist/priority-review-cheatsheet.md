@@ -254,11 +254,11 @@ Optional adds: `s3` Gateway (for patches/output), `logs`, `kms`.
 
 ### SCP vs Permissions Boundary vs RCP
 
-| Control | Scope | Set via | Use case |
-|---|---|---|---|
-| **SCP** | Org / OU / account-wide | AWS Organizations | "No one in this OU can do X" |
-| **Permissions Boundary** | Per-principal | IAM (on the user/role) | "This role can never exceed Y" (delegation pattern) |
-| **RCP** (Resource Control Policy, newer) | Org / OU / account-wide on resources | AWS Organizations | Restricts external access TO your resources |
+| Control                                  | Scope                                | Set via                | Use case                                            |
+| ---------------------------------------- | ------------------------------------ | ---------------------- | --------------------------------------------------- |
+| **SCP**                                  | Org / OU / account-wide              | AWS Organizations      | "No one in this OU can do X"                        |
+| **Permissions Boundary**                 | Per-principal                        | IAM (on the user/role) | "This role can never exceed Y" (delegation pattern) |
+| **RCP** (Resource Control Policy, newer) | Org / OU / account-wide on resources | AWS Organizations      | Restricts external access TO your resources         |
 
 ### Region restriction SCP pattern (recognize on sight)
 
@@ -541,5 +541,348 @@ These option patterns are wrong on construction:
 - **Free retake voucher is your safety net** — take the exam confidently knowing it exists
 - **Sleep 8+ hours nightly** — exam-day brain matters more than 1 extra hour of studying
 - **No studying past 18:00 the day before exam** — taper hard
+
+---
+
+## ⚠️ COMMON TRAPS — recognize on sight, eliminate fast
+
+This section is the single highest-value review item. Read it daily.
+
+### Network direction traps
+
+| Trap pattern | Why wrong | Right answer |
+|---|---|---|
+| "ALB-SG inbound from WebAppSG" | ALB receives from internet, not from web apps | ALB-SG inbound from `0.0.0.0/0`; outbound to WebAppSG |
+| "EC2 needs outbound port 1024-65535 for ALB response" | SGs are stateful — return traffic is automatic | No outbound rule needed |
+| "Use NACL for instance-level isolation" | NACL is subnet-level, affects all instances in subnet | Use SG for per-instance |
+| "Source/dest check enabled on NAT/firewall instance" | AWS drops forwarded packets | **Disable source/dest check** on the ENI |
+| "Cross-region peering with SG ID reference" | Cross-region doesn't support SG ID refs | Use CIDR instead |
+
+### Route 53 / DNS traps
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "CNAME for apex domain" | DNS RFC forbids CNAME at apex | Use Route 53 **Alias** record |
+| "Route 53 geolocation routing blocks traffic" | Geolocation ROUTES, doesn't BLOCK | Use CloudFront geo-restriction or WAF geo match |
+| "Latency routing for security" | Latency routing is for performance | Use geolocation or WAF for security |
+
+### KMS traps (your stubborn miss area)
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "Imported key material + automatic rotation" | Imported NEVER auto-rotates | Use AWS-generated symmetric for auto; manual rotation for imported |
+| "Imported key material in Custom Key Store" | Custom stores don't accept imports | Default key store only for imports |
+| "Schedule KMS key deletion within 24 hours" | Min waiting period is 7 days | Imported material via `DeleteImportedKeyMaterial` (immediate) |
+| "Root user has KMS access by default" | Root has NO implicit access to KMS | Must be in key policy explicitly |
+| "AWS Support restores deleted KMS keys" | Past waiting period = permanent | No recovery; gone forever |
+| "Cancel KMS deletion past waiting period" | Only works DURING waiting period | Imported material can be re-imported; AWS-gen is gone |
+| "KMS grants can be given to AWS service principals" | Grants need real principals (account/user/role) | Use key policy for services |
+| "Encryption context generates different keys" | Context is metadata/AAD, not key generation | Use different CMK or DEKs (which are unique per object automatically) |
+
+### CloudFront / ACM / cert traps
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "Origin Request Policy forwards Authorization header" | Authorization header is BLOCKED in Origin Request Policy (HTTP 400) | **Cache Policy** for Authorization |
+| "ACM-issued cert installed on EC2" | ACM-issued certs are NOT exportable | Imported cert or ACM Private CA cert |
+| "CloudFront ACM cert in us-west-2" | CloudFront needs cert in us-east-1 ALWAYS | Request cert in us-east-1 |
+| "Email validation auto-renews indefinitely" | Email requires manual click each cycle | DNS validation for indefinite auto-renewal |
+| "AWS KMS for SSL/TLS certificate generation" | KMS is for at-rest encryption keys, not TLS certs | Use ACM for TLS certificates |
+
+### IAM / Policy traps
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "Identity-based policy with Principal element" | Only resource-based policies have Principal | Identity-based: no Principal (implicit) |
+| "Resource-based policy without Principal" | Resource-based REQUIRES Principal | Add Principal block |
+| "MaxSessionDuration as condition key" | It's a role attribute, not a condition key | Use `aws:MultiFactorAuthAge` for session age |
+| "DateLessThan with numeric seconds value" | DateLessThan expects ISO 8601 timestamp | Use `NumericLessThan` with `aws:MultiFactorAuthAge` for seconds |
+| "aws:SourceIp works through VPC endpoint" | Endpoint traffic doesn't carry original SourceIp | Use `aws:SourceVpc` or `aws:SourceVpce` |
+| "Composite principal with every service in trust policy" | Trust policy defines who ASSUMES, not what role acts on | Single service principal in trust; broad actions in permissions |
+| "AD Connector + forest trust" | AD Connector is a proxy, not a directory — no trust | Trust requires AWS Managed Microsoft AD |
+| "One-way trust for IAM Identity Center" | Identity Center needs to enumerate users bidirectionally | Two-way trust required |
+| "Global STS endpoint works in opt-in regions" | Global STS v1 tokens fail in opt-in regions | Use regional STS endpoints (v2 tokens) |
+| "Excluded administrators from SCP" | SCPs apply to ALL principals in member accounts | Can't structurally exclude admins (only via Condition) |
+| "Permissions boundary applied via Organizations" | Boundaries are per-principal in IAM, not via Orgs | Use SCP for org-wide |
+
+### Compromised resource response traps
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "Stop instance immediately when compromised" | Loses RAM forensics | Capture memory first (SSM Run Command), THEN stop |
+| "Detach root EBS from running instance" | Impossible — root volume requires stopped instance | Stop first, or use snapshot approach |
+| "Attach original suspect EBS to forensic instance" | Contaminates evidence | Snapshot first, attach the COPY |
+| "Sign into compromised instance to investigate" | Tips off attacker, contaminates evidence | Investigate from clean diagnostics box |
+| "Private key in EC2 authorized_keys" | authorized_keys takes PUBLIC keys | Add public key, keep private on client |
+| "Revoke STS sessions BEFORE inactivating leaked key" | Attacker can just generate new sessions | Inactivate key FIRST, then revoke sessions |
+| "Delete compromised IAM role immediately" | Destroys forensic trail | Disable + investigate, delete later |
+
+### Security service capability traps
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "Firewall Manager inspects traffic" | FW Manager is a MANAGEMENT tool — manages WAF/Shield/NF policies | Network Firewall does inspection |
+| "GuardDuty blocks attacks" | GuardDuty DETECTS, doesn't block | Use WAF / Network Firewall / SG for blocking |
+| "Macie monitors all S3 buckets globally" | Macie is regional, per-region enablement | Use Organizations delegated admin for cross-account |
+| "AWS Inspector monitors API calls" | Inspector scans vulnerabilities, not API activity | Use CloudTrail + EventBridge for API monitoring |
+| "Trusted Advisor sends real-time alerts" | TA does periodic checks, weekly email | Use CloudWatch/EventBridge for real-time |
+| "Detective generates findings" | Detective is for investigation, not detection | GuardDuty/Inspector/Macie generate findings |
+| "Security Hub is global" | Regional service, cross-region aggregation is opt-in | Designate aggregation region |
+| "Access Analyzer blocks unauthorized access" | Access Analyzer DETECTS, doesn't block | Use bucket policy or SCP to block |
+
+### Logging / monitoring traps
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "ELB access logs to CloudWatch Logs" | ELB logs go to **S3 ONLY** | S3 + Athena for querying |
+| "CW metric filter on S3 logs" | Metric filters work ONLY on CW Logs | Athena query + Lambda + PutMetricData |
+| "Flow Logs capture endpoint-to-NLB PrivateLink traffic" | Flow Logs SKIP this traffic | No native logging — use Traffic Mirroring |
+| "VPC Flow Logs capture packet content" | Metadata only | Use Traffic Mirroring for content |
+| "S3 event notifications filter by ACL/permission" | S3 events filter only by event type/prefix/suffix | Use CloudTrail data events + EventBridge for ACL-based detection |
+| "Public S3 detection via Access Analyzer in real-time" | Access Analyzer is state-based, not event-driven | Use CloudTrail data events for real-time |
+
+### VPC endpoint traps
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "VPC endpoint policy with `ec2:*VpcEndpoint*` action" | That's admin action for managing endpoints | Use runtime action (`s3:GetObject`, `execute-api:Invoke`, etc.) |
+| "Enable private DNS to access public APIs" | Private DNS BREAKS public API access from VPC | Don't enable private DNS if you need public APIs |
+| "Gateway endpoint for S3 from on-prem" | Gateway is VPC-local, doesn't work from on-prem | Use Interface endpoint for S3 |
+| "SSM Session Manager with 2 endpoints (ssm + ssmmessages)" | Need THREE: ssm + ssmmessages + ec2messages | "SSM + two messages" mnemonic |
+
+### Encryption in transit traps (recurring multi-fact)
+
+| Trap | Why wrong | Right answer |
+|---|---|---|
+| "All intra-region traffic encrypted between EC2 instances" | Only Nitro instances; not universal | Depends on instance type |
+| "Direct Connect encrypts traffic by default" | DX is private but unencrypted | Use VPN over DX or MACsec |
+| "VPC endpoint traffic is encrypted at network layer" | Private path, but no automatic encryption | Rely on app-layer TLS |
+| "Cross-region traffic needs VPN to be encrypted" | AWS auto-encrypts inter-region backbone traffic | No setup needed |
+
+### Word-hunt discriminators (read carefully)
+
+| Phrase in question | Forces what answer |
+|---|---|
+| "as soon as" / "immediately" / "real-time" / "uploaded" | Event-driven (EventBridge/CloudTrail) |
+| "find existing" / "audit posture" | State-based (Config/Access Analyzer) |
+| "single notification" / "consolidated" | Scheduled batch, not per-event |
+| "within X hours" where X < 7 days | Imported KMS material (immediate delete) |
+| "server must terminate TLS" | NLB TCP listener (passthrough), not TLS listener |
+| "most efficient" / "least operational overhead" / "minimum effort" | Simpler answer wins; eliminate over-engineering |
+| "all accounts" / "organization-wide" | SCP (not permissions boundary) |
+| "delegate IAM role creation safely" | SCP + Permissions Boundary combo |
+| "domains hosted outside Route 53" | DNS validation works fine (any DNS provider) |
+| "apex/root domain pointing to AWS resource" | Route 53 Alias (not CNAME) |
+| "single key per file/object" | SSE-S3 (already per-object); don't reach for SSE-KMS unless audit needed |
+| "FIPS 140-2 Level 3 + customer manages HSM" | CloudHSM or KMS Custom Key Store |
+| "import customer key material" | Default key store, customer-managed CMK |
+
+### Construction errors (always wrong on sight)
+
+These option patterns are wrong by construction — eliminate immediately:
+
+- `aws:SourceIp` matching VPC endpoint traffic (doesn't fire)
+- Security group ID as Principal in S3 bucket policy
+- Trust policy between AD Connector and on-prem AD (Connector has no identity)
+- IAM policy attached directly to Lambda function (must be on execution role)
+- "Identity-based policy" answer that includes `Principal` element
+- "Resource-based policy" answer without `Principal` element
+- EC2 detach root volume from running instance (must stop first)
+- Private key in EC2 `authorized_keys` (public key goes there)
+- `MaxSessionDuration` used as condition key (it's a role attribute)
+- `ec2:*VpcEndpoint*` action in VPC endpoint policy (admin action, not runtime)
+- EventBridge SES as target (SES not supported; use SNS)
+- "Cancel KMS deletion" past waiting period
+- "AWS Support restores deleted KMS keys" (impossible)
+- "Root user has implicit access to KMS keys" (false)
+- Cross-region peering with SG ID reference (CIDR only)
+- ALB MTU 9001 across regions (cross-region peering is 1500)
+- CloudWatch metric filter on S3 logs (CW Logs only)
+- Promiscuous mode on EC2 ENI (not supported)
+- Importing key material into Custom Key Store (default store only)
+- "VPC Peering" between a VPC and an AWS service (peering is VPC-to-VPC only)
+- CNAME at apex/root domain (DNS-level violation)
+- "Encryption context generates unique keys" (context is metadata, not key generation)
+- "Single endpoint for SSM" in private subnet (need three)
+
+---
+
+*Updated June 1, 2026 — added Common Traps section based on Mock #2 misses (Q7, Q15, Q16, Q17, Q18, Q19, Q20, Q25)*
+
+---
+
+## ⚠️ Additional Traps — June 1 mini-test #2 misses
+
+### RDS encryption — set at creation ONLY
+
+> **You CANNOT enable encryption on an existing unencrypted RDS database.** Encryption can only be set when the DB is created. To "add encryption" to an existing DB:
+>
+> 1. Take a snapshot (will be unencrypted)
+> 2. **Copy the snapshot** and during copy, specify encryption with a KMS key
+> 3. **Restore** a new DB from the encrypted snapshot
+> 4. Cut over apps (new endpoint), then terminate old DB
+
+**Related traps**:
+- ❌ "Modify storage settings to add KMS key" — not possible on existing DB
+- ❌ "Create encrypted read replica of unencrypted master" — replicas inherit encryption state; unencrypted master → unencrypted replica only
+- ❌ "Promote encrypted replica to primary" — impossible because you can't make an encrypted replica from an unencrypted master in the first place
+
+**Same pattern applies to**: changing the KMS key on encrypted RDS (also requires snapshot+copy+restore with new key).
+
+**Detection of unencrypted RDS**: AWS Config managed rule `rds-storage-encrypted` + SNS notification.
+
+### EC2 key pair rotation — `authorized_keys` edit required
+
+> **You CANNOT change an EC2 instance's SSH key via any AWS API after launch.** Rotation requires editing the OS-level `~/.ssh/authorized_keys` file on the instance itself.
+
+**Procedure to rotate / revoke SSH access**:
+1. Generate new key pair in EC2 console
+2. Connect to instance (via existing key, Session Manager, or EC2 Instance Connect)
+3. Edit `~/.ssh/authorized_keys`:
+   - Add new public key
+   - Remove old public key (to revoke access)
+4. Test connection with new key BEFORE closing existing session
+5. Update any automation/scripts that referenced the old key
+
+**Construction errors to eliminate**:
+- ❌ `modify-instance-attribute` API to change key pair — no such option
+- ❌ "Use EC2 console to change key pair on running instance" — console only shows the key at launch time; can't be changed post-launch
+- ❌ "Modify key pair in AMI" — only affects FUTURE instances launched from the AMI, not existing ones
+- ❌ "Delete and recreate key pair in EC2 console" — deletes the AWS-stored key pair record but doesn't remove the public key from any running instance's `authorized_keys`
+
+**Use case**: departing employee with copy of private key → SSH in, replace `authorized_keys`, kill their access immediately.
+
+### AWS Organizations does NOT have password policy
+
+> **AWS Organizations does NOT support org-wide password policies.** Password policies are configured per-account in IAM (for IAM users), in the IdP for federated users, or in Cognito user pool for Cognito users.
+
+**Password policy locations**:
+
+| User type | Where password policy lives |
+|---|---|
+| **IAM users** | IAM → Account settings → Password policy (per-account) |
+| **Federated (SAML/AD/Okta)** | At the upstream IdP — not in AWS |
+| **Amazon Cognito User Pool** | In the User Pool configuration |
+| **Amazon Cognito Identity Pool** | N/A (identity pools don't have users) |
+| **IAM Identity Center store** | In Identity Center configuration |
+
+**Construction errors to eliminate**:
+- ❌ "Set password policy in AWS Organizations" — not a feature
+- ❌ "Set IAM password policy for federated users" — IAM users only; federation goes to IdP
+- ❌ "Configure password policy in Cognito Identity Pool" — identity pools authorize, don't authenticate
+
+### AWS Config + S3 + SNS — three-policy setup
+
+For Config to deliver findings to S3 and notify via SNS, you need permissions at THREE places:
+
+| Layer | What |
+|---|---|
+| **1. Config role TRUST policy** | Allow `config.amazonaws.com` to assume the role |
+| **2. Config role IDENTITY policy** | Grant `s3:PutObject` on the target bucket |
+| **3. SNS topic RESOURCE policy** | Allow `config.amazonaws.com` to `sns:Publish` |
+
+**Common traps**:
+- ❌ "S3 bucket ACL to allow Config" — ACLs not used for service access
+- ❌ "Trust policy allowing `s3.amazonaws.com`" — Config assumes the role, not S3
+- ❌ "SNS access policy with `sns:write`" — correct action is `sns:Publish`, not `sns:write`
+
+If any one layer is missing → Config doesn't deliver. Always check all three.
+
+### API Gateway usage analytics — access logging required
+
+> **API Gateway access logs are NOT enabled by default.** To analyze API usage with CloudWatch Logs Insights, you must FIRST enable access logging on the stage.
+
+**Two-step setup**:
+1. **Enable access logging** on the API stage → choose CloudWatch Logs as destination, configure log format ($context variables)
+2. **Query with CloudWatch Logs Insights** for analysis
+
+**Distinction from other API Gateway logs**:
+
+| Log type | What it captures | Use for |
+|---|---|---|
+| **Access logs** | Per-request data (status, latency, user agent, source IP) | Usage analytics, troubleshooting |
+| **Execution logs** | API Gateway internal processing details | Debugging API Gateway behavior |
+| **CloudTrail logs** | Management API calls (create/update/delete API) | Audit of who configured what |
+| **Detailed CloudWatch Metrics** | Per-method metrics (count, latency, 4xx, 5xx) | Dashboarding, alarms |
+
+**Construction errors**:
+- ❌ "Enable Detailed Metrics for usage analysis" — gives counts/latency but not per-request usage data
+- ❌ "Use CloudTrail for API usage" — CloudTrail captures management plane, not data plane (API invocations)
+
+### Parameter Store + KMS troubleshooting
+
+When using Parameter Store SecureString with a customer-managed KMS key, common error causes:
+
+**Real causes (these break it)**:
+- ❌ Application IAM role lacks `kms:Encrypt` / `kms:Decrypt` permission on the key
+- ❌ Key state is `Disabled` (or `PendingDeletion` / `PendingImport`)
+- ❌ KMS key policy doesn't allow the calling principal
+- ❌ Cross-region: key is in different region than the parameter
+- ❌ Cross-account: key policy doesn't allow other account
+- ❌ Encryption context mismatch (if context was used at encrypt time)
+
+**NOT causes (these are red herrings)**:
+- ✅ Key alias vs key ID — both work interchangeably
+- ✅ Multiple secrets using same key — KMS keys can encrypt unlimited secrets
+- ✅ Standard tier vs Advanced tier — both support customer-managed KMS keys
+- ✅ Parameter name format — no relation to KMS errors
+
+### Direct Connect encryption (reinforce — recurring miss)
+
+> **Direct Connect is PRIVATE but NOT encrypted.** Private path ≠ encrypted path.
+
+To encrypt traffic over DX:
+- **Option A**: Site-to-Site VPN over DX → IPsec encryption at L3
+  - Requires creating a **Virtual Private Gateway (VGW)** on the AWS side
+  - VPN tunnel runs over the DX connection
+  - Slight latency overhead from IPsec processing
+- **Option B**: MACsec (Layer 2 encryption)
+  - Available on Dedicated Connections of 10 Gbps or 100 Gbps
+  - Hardware-accelerated, no software overhead
+  - Requires MACsec-capable routers on both sides
+
+**Construction errors**:
+- ❌ "Enable IPSec on the Direct Connect connection" — DX doesn't have an IPSec option; you create a VPN over DX
+- ❌ "Add KMS key to Direct Connect" — DX has no KMS integration; KMS is for data-at-rest
+- ❌ "Configure Direct Connect Gateway for encryption" — DX Gateway is for connecting to multi-region VPCs, NOT encryption
+
+### Recurring SG direction trap (3x missed today — must lock in)
+
+> **The instance that RECEIVES traffic needs the inbound rule. The instance that SENDS traffic doesn't need an outbound rule (default allow-all + stateful).**
+
+For a 3-tier app (Web → App → DB):
+
+| Security Group | Direction | Rule |
+|---|---|---|
+| **WebSG** | Inbound | 80/443 from `0.0.0.0/0` (or CloudFront IPs) |
+| **AppSG** | Inbound | App port from **WebSG** ← (Web initiates to App) |
+| **DBSG** | Inbound | DB port (e.g., 3306) from **AppSG** ← (App initiates to DB) |
+
+**Critical "who initiates?" reflex**:
+- Web → App: Web initiates → App needs inbound from WebSG
+- App → DB: App initiates → DB needs inbound from AppSG
+- ❌ "AppSG inbound from DBSG" — WRONG direction (DB doesn't initiate to App)
+- ❌ "WebSG inbound from AppSG" — WRONG direction (App doesn't initiate to Web)
+
+**Mnemonic**: traffic flows DOWN the stack (Web→App→DB), so inbound rules cascade DOWN (App accepts from Web, DB accepts from App).
+
+### Explicit Deny overrides Explicit Allow (core IAM evaluation)
+
+> **An explicit Deny in ANY policy always overrides any Allow, regardless of where the Allow comes from.**
+
+When troubleshooting "user can't access X" issues, check Deny statements first:
+1. **Bucket policy explicit Deny** — checked even before IAM policy Allows
+2. **SCP explicit Deny** — caps the entire account
+3. **IAM identity policy explicit Deny** — caps the user/role
+4. **Permissions boundary** — caps the role
+5. **Session policy** — caps the session
+
+**Common scenario**: lockdown policy applied during incident has a wide Deny, then later you try to grant exception via IAM policy → still denied because the bucket policy's Deny overrides.
+
+**Fix**: modify the Deny statement to exclude the exception (using Condition with `aws:PrincipalArn` NotEquals), don't try to "out-allow" it.
+
+---
+
+*Updated June 1, 2026 (later) — added gaps from mini-test #2: RDS encryption, EC2 key rotation, Orgs password policy, Config tri-policy, API Gateway access logs, Parameter Store + KMS troubleshooting, DX encryption reinforcement, SG direction reinforcement, explicit Deny rule*
 
 *Last updated: May 30, 2026*

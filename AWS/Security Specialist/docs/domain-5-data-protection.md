@@ -127,6 +127,27 @@ This domain covers data protection in transit, at rest, and management of confid
 | "Minimal application changes" | Use alias (don't hardcode key IDs in app) |
 | "Key was compromised, retire it" | Manual rotation + `ReEncrypt` existing data + schedule old CMK deletion |
 
+### KMS Key Store compatibility matrix (TRAP — imported keys can ONLY go in default store)
+
+> **Imported key material can ONLY go into the DEFAULT KMS key store, never into a Custom Key Store or External Key Store.** Custom Key Stores rely on CloudHSM hardware to generate keys — bypassing that with imports would defeat the hardware-rooted security model.
+
+| Feature | Default Key Store | Custom Key Store (CloudHSM) | External Key Store (XKS) |
+|---|---|---|---|
+| AWS-generated key material | ✅ Yes (default) | ✅ Yes (via CloudHSM) | N/A (key lives outside AWS) |
+| **Imported key material** | ✅ **YES — only place it works** | ❌ **NO** | N/A |
+| Symmetric keys | ✅ Yes | ✅ Yes | ✅ Yes |
+| Asymmetric keys | ✅ Yes | ✅ Yes | Limited |
+| Auto-rotation | ✅ (symmetric AWS-gen only) | ❌ No | ❌ No |
+| **Custom expiration date** | ✅ **Only with imported material** | ❌ No | Depends on external HSM |
+| **Immediate delete** (no 7-day wait) | ✅ **Only with imported material** via `DeleteImportedKeyMaterial` | ❌ No | Depends |
+| Customer manages HSM | No | ✅ Yes | ✅ Yes |
+| FIPS 140-2 Level | 3 | 3 | Depends on your HSM |
+
+**Reflex rule**:
+- "Import own key material + custom expiration date" → **Default key store, customer-managed key, EXTERNAL origin**
+- "Custom key store" → CloudHSM-backed, AWS-generated keys, no imports allowed
+- "HSM must be outside AWS entirely" → XKS
+
 ### Key Documentation Links
 
 - [AWS KMS best practices - Introduction](https://docs.aws.amazon.com/prescriptive-guidance/latest/aws-kms-best-practices/introduction.html)
@@ -334,7 +355,60 @@ Defense in depth combines them; but for "detect unauthorized changes" specifical
 - Saves costs
 - Reduces CloudTrail events
 
-📖 **Documentation**: [S3 Encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingEncryption.html)
+### S3 Cross-Region Replication with SSE-KMS — THREE permission layers (TRAP)
+
+When you set up CRR between two buckets that are SSE-KMS encrypted (different keys in each region — KMS keys are regional, can't be shared cross-region), the replication role needs permissions at **three places**, not just one:
+
+```
+Source Bucket (eu-west-1, encrypted with SOURCE-KMS-KEY)
+   │
+   │ Replication Role (must have permissions on BOTH keys)
+   ▼
+Destination Bucket (eu-central-1, encrypted with DEST-KMS-KEY)
+```
+
+**Layer 1: Replication Role identity policy** needs:
+- `kms:Decrypt` on Source-KMS-Key
+- `kms:Encrypt` / `kms:GenerateDataKey` on Dest-KMS-Key
+- `kms:ReEncryptFrom` and `kms:ReEncryptTo` (best practice)
+- Standard S3 replication: `s3:GetObjectVersion`, `s3:GetObjectVersionTagging`, `s3:ReplicateObject`, `s3:ReplicateDelete`, `s3:ReplicateTags`
+
+**Layer 2: Source KMS key policy** must allow:
+- Replication Role principal to `kms:Decrypt`
+
+**Layer 3: Destination KMS key policy** must allow:
+- Replication Role principal to `kms:Encrypt` (and `kms:GenerateDataKey`)
+
+**Symptom of incomplete config**: unencrypted objects replicate fine but SSE-KMS-encrypted objects fail. This means the role has S3 permissions but lacks KMS permissions at one or more layers.
+
+**Reflex**: "CRR + SSE-KMS not working" → check all THREE permission layers (role identity policy + both key policies). Don't fall for distractors that only address S3 permissions.
+
+📖 **Documentation**: [S3 Encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingEncryption.html)  
+📖 **CRR with KMS**: [Replicating SSE-KMS encrypted objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-config-for-kms-objects.html)
+
+---
+
+## 🔐 Encryption In Transit — what's encrypted by default (TRAP)
+
+Memorize these four defaults — they come up in multi-fact recall questions:
+
+| Traffic path | Encrypted by default? | Notes |
+|---|---|---|
+| **Between AWS regions** (over AWS global network backbone) | ✅ **YES** | Automatic at physical layer for all inter-region traffic |
+| **Between Availability Zones** (within a region) | ✅ **YES** | Automatic encryption between AZs |
+| **Between EC2 instances** (intra-region/same VPC) | ⚠️ **DEPENDS on instance type** | Nitro-based instances: yes (since ~2021). Older instance types: no. |
+| **Direct Connect** | ❌ **NO** | DX is a private connection but NOT encrypted. Use Site-to-Site VPN over DX or MACsec to encrypt. |
+| **Site-to-Site VPN** | ✅ Yes | IPsec encryption |
+| **Internet traffic to AWS endpoints** | ⚠️ Depends on app | TLS depends on the app/SDK using HTTPS endpoints |
+| **PrivateLink / VPC endpoint traffic** | ❌ Not by default | Private path but not encrypted at network layer; rely on app-layer TLS |
+
+**Common traps**:
+- "All intra-region traffic is encrypted between instances **for all instance types**" — FALSE (Nitro only)
+- "Direct Connect encrypts traffic by default" — FALSE (private ≠ encrypted)
+- "VPC endpoints encrypt traffic" — FALSE (private path, but rely on TLS at app layer)
+- "Inter-region traffic is unencrypted unless you set up VPN" — FALSE (auto-encrypted on AWS backbone)
+
+**Reflex rule**: **Private path ≠ encrypted path.** Always check if encryption is explicit (TLS, IPsec, MACsec) or automatic.
 
 ---
 

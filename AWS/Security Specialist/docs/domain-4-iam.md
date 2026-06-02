@@ -512,6 +512,54 @@ Both restrict permissions, but they operate at different scopes:
 - They do NOT affect the management account
 - They do NOT affect service-linked roles
 
+### THE delegation pattern — SCP + Permissions Boundary together (high-frequency exam)
+
+When the question describes "delegate IAM role/user creation to teams while preventing privilege escalation" — this combo is THE answer:
+
+```
+1. SECURITY TEAM defines a Permissions Boundary policy
+   (caps what any delegated role can ever do)
+
+2. SCP attached to org root (or relevant OU):
+   - Denies iam:CreateRole / iam:CreateUser / iam:CreatePolicy
+   - UNLESS the call includes the required Permissions Boundary
+   - Uses the iam:PermissionsBoundary condition key
+
+3. Application/regional teams can now create IAM roles freely,
+   but the SCP forces them to attach the boundary,
+   and the boundary caps what those roles can do.
+```
+
+**Example SCP enforcing the boundary on role creation**:
+```json
+{
+  "Effect": "Deny",
+  "Action": ["iam:CreateRole", "iam:PutRolePolicy", "iam:AttachRolePolicy"],
+  "Resource": "*",
+  "Condition": {
+    "StringNotEquals": {
+      "iam:PermissionsBoundary": "arn:aws:iam::*:policy/StandardDelegationBoundary"
+    }
+  }
+}
+```
+
+This says: "You cannot create roles unless you attach the `StandardDelegationBoundary` policy as their permissions boundary."
+
+**Why this beats alternatives**:
+
+| Wrong approach | Why it fails |
+|---|---|
+| OUs per region with service-limit SCPs | Limits SERVICES but not PRIVILEGE within services. Teams can still create admin roles in allowed services. |
+| Training + bi-annual audits | Operational overhead, slow detection, relies on human discipline |
+| IAM groups + RBAC | Doesn't prevent privilege escalation when teams create new roles |
+| Permissions boundary alone (no SCP) | Teams might forget to attach it; nothing enforces |
+| SCP alone (no boundary) | SCPs apply org-wide but don't cap individual roles' permissions per-principal |
+
+**Exam reflex trigger**: "delegate IAM creation safely" OR "prevent privilege escalation by teams creating roles" OR "least operational overhead for IAM delegation" → **SCP requiring permissions boundary + the boundary policy itself**.
+
+This is the same delegation pattern that appears in CloudFormation service role scenarios, EKS Pod Identity creation, and any "let teams create IAM but cap them" question.
+
 #### CloudFormation service role — the textbook pattern
 
 **Problem**: by default, CFN executes stack operations with the **caller's permissions**. If team members have different IAM permissions, the same stack deploys for some and fails for others.

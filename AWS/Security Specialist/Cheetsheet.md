@@ -207,8 +207,9 @@ KMS Customer Master Keys (CMKs): a master key, used to generate/encrypt/decrypt 
 * __CMKs are REGION specific__: CMKs can only be used within the same region.
 
 KMS: Custom Key Store
-* __KMS CMKs you create__ by DEFAULT are generated and stored/protected by HSMs that are FIPS 140-2 Level 2 compliant.
-* __KMS Custom Key Store__ is a storage/protection for a KMS CMK by an AWS CloudHSM cluster, which is FIPS 140-2 Level 3 compliant. Your CMKs never leave the CloudHSM instances.
+* __KMS CMKs you create__ by DEFAULT are generated and stored/protected by HSMs that are **FIPS 140-2 Level 3** compliant (updated; older docs said Level 2). Both default KMS and CloudHSM are now Level 3.
+* __KMS Custom Key Store (CloudHSM-backed)__ is a storage/protection for a KMS CMK by an AWS CloudHSM cluster, which is FIPS 140-2 Level 3 compliant. Your CMKs never leave the CloudHSM instances.
+* __KMS External Key Store (XKS)__ (newer, late 2022) — uses key material in YOUR HSM outside AWS (on-prem or 3rd-party key manager). FIPS level depends on your HSM. Use when keys must never reside in AWS.
 * __All KMS operations__ on CMKs in a Custom Key Store are only performed in your HSMs.
 * __Integration with AWS SDK/Encryption SDK and AWS services__ is available to applications that use the Custom Key Store.
 
@@ -229,10 +230,10 @@ KMS Key Rotation
 * __AWS-Owned CMKs__: _CMKs that belongs to AWS, not the customer. CAN'T be viewed/audited._
 	* AWS manages rotation.
 	* Rotation is varied - it depends on the AWS service that creates and manages the CMK.
-* __AWS-Managed CMKs__: _CMKs that belong to the customer, but managed by AWS on behalf of an AWS service integrated with KMS. CAN be viewed/audited, but CANNOT be used in cryptographic operations nor change key policies._
-	* AWS manages rotation.
-	* Rotation is required and occurs every __3 YEARS__.
-	* NO manual rotation.
+* __AWS-Managed CMKs__: _CMKs that belong to the customer, but managed by AWS on behalf of an AWS service integrated with KMS (e.g. `aws/s3`, `aws/rds`). CAN be viewed/audited, but you CANNOT change key policies or use them directly in cryptographic operations._
+	* AWS manages rotation automatically.
+	* Historically rotated every ~3 years; AWS updates this cadence over time (newer AWS-managed keys often rotate annually). You don't control or see the schedule.
+	* NO manual rotation by you.
 * __Customer-Managed CMKs__: _CMKs that belong to the customer, fully managed by the customer. CAN be viewed/audited, CAN change key policies/grants, add tags and create aliases._
 	* Customer manages rotation.
 	* Automatic rotation can be enabled with a configurable period of __90 to 2560 days__ (default ~1 year; the pre-2022 fixed "annual only" limit no longer applies) — __use aliases, not key IDs, in apps so rotation is transparent__.
@@ -466,12 +467,29 @@ AWS Account compromised - what to do?
 3. DELETE `IAM Users that have been potentially compromised`.
 4. DELETE `AWS resources you didn't create`.
 
-EC2 has been hacked - what to do?
-1. Stop instances immediately.
-2. Take a snapshot of EBS volume + terminate instance.
-3. Deploy a copy of the instance in an __isolated environment__ (isolated VPC, no internet access).
-4. Access the instance using an __isolated forensic workstation__.
-5. Read logs to figure out how they obtained access.
+EC2 has been hacked - what to do? (MODERN FORENSIC SEQUENCE — supersedes older "stop immediately" advice)
+
+**DO NOT stop the instance first** — stopping wipes RAM and loses volatile evidence. Modern AWS IR best practice:
+
+1. **Enable termination protection** (`DisableApiTermination`) to prevent accidental loss.
+2. **Capture instance metadata + tag** as "Compromised" / "Forensic-Hold".
+3. **Capture volatile memory (RAM) FIRST** — use SSM Run Command to execute a memory acquisition script while the instance is still running. Stopping loses this.
+4. **Detach from Auto Scaling Group** with `--should-decrement-desired-capacity` so ASG doesn't replace it.
+5. **Deregister from any Elastic Load Balancer** target groups.
+6. **Isolate via Security Group** — replace SGs with a "forensic" SG (deny all inbound/outbound, optionally allow outbound to SSM Interface Endpoints for diagnostics).
+   * NOTE: if the suspicious instance is ALONE in its subnet, you can use a NACL outbound deny-all instead (NACLs can DENY, SGs cannot).
+7. **Snapshot EBS volumes** for non-volatile evidence preservation.
+8. **NEVER attach the original (suspect) EBS volume to a forensic instance.** Always:
+   * Create a new EBS volume from the snapshot
+   * Attach the COPY to the forensic instance
+   * Investigate the copy, preserve the original
+9. **Investigate** via Detective, CloudTrail, VPC Flow Logs, snapshot-mounted forensic instance.
+10. **Terminate** the compromised instance only AFTER all evidence is preserved.
+
+OLD ADVICE THAT IS WRONG (commonly seen in legacy docs):
+* "Stop instance immediately + snapshot + terminate" — loses RAM forensics; modern best practice is preserve first
+* "Detach root volume from running instance" — impossible; root volume requires stopped instance
+* "Sign into the compromised instance to investigate" — bad practice; investigate from clean diagnostics box
 
 Leaked Github keys - what to do?
 * __IAM User Credentials__: (1) De-activate IAM User Access Key (2) Create new User Access Key (3) Delete old User Access Key
@@ -484,10 +502,11 @@ __AWS Certificate Manager (ACM)__: provision a SSL cert for a domain name you ha
 * __Use Amazon SSL cert with CloudFront__: Goto `CloudFront` -> select distribution -> edit settings to change default CloudFront SSL cert to the new custom SSL cert associated with your domain name.
 * __Use Amazon SSL cert with EC2__: Goto `EC2` -> `Load Balancers` -> create a load balancer -> `choose a certificate from ACM`.
 
-Configuring Security Policy (SSL/TLS protocols and ciphers) with ELBs / CloudFront 
-* __2016-08__ is the recommended Security Policy as it supports most ciphers.
-* __ECDHE-* cipher__ is required to enable Perfect Forward  Secrecy.
-* __Perfect Forward Secrecy__ is a concept where PAST captured-data cannot be decrypted using a compromised private key, as a new key is created for each SSL-session. The compromised key would only be able to decode data for its specific session, but no other.
+Configuring Security Policy (SSL/TLS protocols and ciphers) with ELBs / CloudFront
+* **Modern recommended policies (updated for 2024+)**: AWS publishes regularly-updated security policies. For ALB/NLB use the `ELBSecurityPolicy-TLS13-1-2-*` family (TLS 1.3 + TLS 1.2 only, no older versions). For CloudFront use `TLSv1.2_2021` or newer. The legacy `2016-08` policy is outdated — supports older ciphers including weakened ones.
+* __ECDHE-* cipher__ is required to enable Perfect Forward Secrecy (PFS).
+* __Perfect Forward Secrecy__: each TLS session uses a fresh ephemeral key. If the long-term private key is later compromised, past captured ciphertext from prior sessions CANNOT be decrypted — each session was protected by a unique ephemeral key that was discarded after use.
+* **For compliance scenarios**: prefer TLS 1.3 only or TLS 1.2+ minimum; disable TLS 1.0 / 1.1 (deprecated by PCI-DSS, NIST).
 
 API Gateway - Throttling and Caching
 * __Steady-State Limit__: 10,000 req/sec
@@ -513,10 +532,20 @@ Compliance Frameworks
 
 ## Chapter 7 - Additional Topics
 
-Using Amazon Macie
-* Macie can only monitor S3 buckets within the same region.
-* Macie uses `AWSServiceRoleForAmazonMacie` which cover mainly permissions for CloudTrail (creating/reading logs) and S3 (creating/deleting buckets and objects)
-* An S3 CloudTrail bucket will be created to capture all data events with Macie.
+Using Amazon Macie (S3 sensitive data discovery)
+* **Macie is REGIONAL** — enable per region. Cross-region/cross-account aggregation requires delegated administrator in AWS Organizations.
+* Uses `AWSServiceRoleForAmazonMacie` (service-linked role) with permissions to read S3 objects, list buckets, decrypt KMS-encrypted objects.
+* **What Macie actually does**:
+  - Continuously discovers, classifies, and protects sensitive data in S3 (PII, PHI, financial data, credentials)
+  - Uses managed data identifiers (100+ predefined patterns) and custom regex identifiers
+  - Generates findings for sensitive data exposure or policy violations
+  - Findings flow to Security Hub and EventBridge for automation
+* **Macie does NOT**:
+  - Monitor non-S3 storage (no EBS, RDS, DynamoDB, etc.)
+  - Block or prevent access — it discovers and alerts only
+  - Replace KMS encryption — it identifies WHAT data exists, not encrypts it
+  - Create or require a "CloudTrail bucket" (older docs that say this are misleading; Macie reads S3 data + uses CloudTrail events for context, but doesn't create infrastructure)
+* **Use cases**: compliance with PII/PHI regulations, data classification, detecting accidentally-public sensitive data
 
 Using Amazon GuardDuty
 * Takes 7-14 days to establish a baseline - "_what is normal behaviour in your account?_"
@@ -559,18 +588,37 @@ Network packet inspection in AWS
 * __IMPORTANT__: For DPI on TLS-encrypted traffic (e.g. HTTPS via NLB), terminate TLS at the load balancer first so Network Firewall sees plaintext. Network Firewall does NOT decrypt TLS itself.
 * __Firewall Manager vs Network Firewall trap__: Firewall Manager is a *management* tool (centralizes WAF/Shield/Network Firewall/SG policies across an Organization). It does NOT inspect traffic itself. Exam loves this trap.
 
-Active Directory Federation with AWS: AWS enables federated sign-in to AWS using Active Directory credentials
-* Great for companies with an existing Active Directory Domain + have corporate users who have AD accounts.
-* __2-WAY TRUST__: establishing AD federation with AWS
-	* In AWS, configure ADFS as the __Trusted Identity Provider__ = "_Trust ADFS to provide your users' identities_"
+Active Directory Federation with AWS — multiple options (modern best practice: use IAM Identity Center)
+
+**Three valid architectures depending on AWS account count + scale:**
+
+1. **IAM Identity Center (modern preferred)** — AWS-managed SSO across multiple AWS accounts. Identity source can be:
+   - Identity Center's built-in identity store (no AD needed)
+   - **AWS Managed Microsoft AD with 2-way forest trust** to on-prem AD (preferred for resilience)
+   - **AD Connector** (proxy to on-prem AD; no trust needed because Connector is a pipe, not a directory)
+   - External SAML/OIDC IdP (Okta, Azure AD, Ping)
+   - Scales naturally as new accounts join the org via permission sets
+
+2. **SAML 2.0 + ADFS (legacy per-account pattern)** — pre-IAM-Identity-Center approach. Each AWS account needs its own SAML provider configuration. Doesn't scale to many accounts. Still tested as the "old way."
+
+3. **IAM Roles Anywhere** — for workloads outside AWS (servers, on-prem code) using X.509 certs. Not for human workforce.
+
+**Old ADFS pattern (still tested on the exam as the legacy method):**
+* __2-WAY TRUST__: establishing AD federation with AWS via ADFS
+	* In AWS IAM, configure ADFS as the __Trusted Identity Provider__ = "_Trust ADFS to provide your users' identities_"
 	* In ADFS, configure AWS as the __Trusted Relying Party__ = "_Trust AWS to consume your users' identities_"
-* Using ADFS to sign-in to AWS Console:
-	1. User logs into ADFS via. ADFS sign-in page + provide credentials.
+* Sign-in flow:
+	1. User logs into ADFS sign-in page + provides credentials.
 	2. ADFS authenticates user against Active Directory.
-	3. ADFS sends back authentication response to user in the form of a SAML token.
-	4. User sends SAML token to AWS sign-in endpoint (choose / assume role page).
-	5. AWS sign-in endpoint makes an `STS AssumeRoleWithSAML` request to get temporary creds to AWS -> STS returns temporary credentials.
-	6. AWS sign-in endpoint redirects user to the AWS Console.
+	3. ADFS sends back authentication response as a SAML token.
+	4. User sends SAML token to AWS sign-in endpoint.
+	5. AWS sign-in endpoint makes an `STS AssumeRoleWithSAML` request → STS returns temporary credentials.
+	6. AWS sign-in endpoint redirects user to AWS Console.
+
+**Exam decoder**:
+- "Multi-account, scalable, on-prem AD" → IAM Identity Center + Managed AD with 2-way trust (or AD Connector for simpler setups)
+- "Single account, existing ADFS" → SAML 2.0 federation (legacy)
+- "Workloads outside AWS need AWS credentials" → IAM Roles Anywhere
 
 AWS Artifact: is a central resource for compliance and security related documents / information
 * Demonstrate compliance to regulators, evaluate your own cloud architecture, assess effectiveness of internal controls.

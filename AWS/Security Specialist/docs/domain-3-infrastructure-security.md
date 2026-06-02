@@ -92,6 +92,74 @@ This domain covers network edge security, compute workload security, and network
 - **Peering**: 1-to-1, non-transitive
 - **Transit Gateway**: Hub-and-spoke, transitive routing
 
+### EC2 Source/Destination Check (TRAP — niche but tested)
+
+> **Every EC2 instance performs a source/destination check by default. AWS drops any packet where the instance isn't the source or destination IP.**
+>
+> For any EC2 instance acting as an inline router/firewall/NAT/VPN appliance, you MUST **disable the source/destination check** on its ENI(s).
+
+**When to disable source/dest check**:
+- NAT instances (legacy NAT pattern)
+- Virtual firewall appliances (3rd-party Marketplace appliances)
+- VPN appliances / software VPN routers
+- Custom routing/transit instances
+- Inline IPS/IDS appliances
+- Any instance that forwards traffic on behalf of other instances
+
+Where to set: EC2 console → instance → Actions → Networking → Change Source/Destination Check → Disable. Or per-ENI for instances with multiple network interfaces.
+
+**Common distractors to eliminate**:
+- "Promiscuous mode" — NOT supported on EC2 (you can't sniff other instances' traffic)
+- "Elastic Network Adapter (ENA)" — high-performance adapter, irrelevant to forwarding
+- "Public subnet with internet gateway" — placement irrelevant to forwarding capability
+
+### Security Group rule direction — ALB ↔ EC2 pattern (TRAP)
+
+Confusion about which direction needs which rules is a common exam trap. Memorize this picture:
+
+```
+Internet (0.0.0.0/0)
+     │ port 443/80 INBOUND to ALB
+     ▼
+ALB  (ALB-SG)
+     │ port 80/443 OUTBOUND from ALB to WebApp port
+     ▼
+EC2  (WebAppSG)
+     │ INBOUND from ALB-SG on WebApp port
+     ▼
+Application
+```
+
+For an ALB-in-front-of-EC2 architecture, the minimal SG rules are:
+
+| SG | Direction | Rule |
+|---|---|---|
+| **ALB-SG** | Inbound | port 80/443 from `0.0.0.0/0` |
+| **ALB-SG** | Outbound | port 80 (app port) to **WebAppSG** |
+| **WebAppSG** | Inbound | port 80 (app port) from **ALB-SG** |
+
+**No outbound rule needed on WebAppSG** — SGs are stateful, return traffic to ALB is automatic.
+
+**No ephemeral port range (1024-65535) rules needed** — same reason, stateful means response traffic flows without explicit rules.
+
+**Trap to avoid**: "ALB-SG inbound from WebAppSG" — WRONG direction. ALB receives from internet (inbound from 0.0.0.0/0), then SENDS to web apps (outbound to WebAppSG). ALB does NOT receive traffic from web apps.
+
+**Universal rule**: identify who INITIATES the connection. That side needs an outbound allow (default is allow all). The receiver needs an explicit inbound allow.
+
+### Route 53 Alias vs CNAME (TRAP for apex domains)
+
+> **CNAME records cannot be used at the apex/root of a domain** (e.g., `example.com`). For pointing the apex to AWS resources (CloudFront, ALB, NLB, S3 static website, API Gateway, etc.), you MUST use a Route 53 **Alias** record.
+
+Why: DNS RFCs forbid CNAME at apex (would conflict with NS and SOA records). Route 53 Alias is an AWS-specific record type that works around this — it appears as type A/AAAA to DNS resolvers but acts like a CNAME pointing to AWS resources.
+
+| Record | Apex (`example.com`)? | Subdomain (`www.example.com`)? | Target |
+|---|---|---|---|
+| **A** | ✅ Yes | ✅ Yes | IP address |
+| **CNAME** | ❌ No | ✅ Yes | Another DNS name |
+| **Alias** (R53 only) | ✅ Yes | ✅ Yes | AWS resources (CloudFront, ALB, NLB, S3 website, API GW, Elastic Beanstalk, etc.) |
+
+**Exam reflex**: any time you see "custom apex domain pointing to AWS service" → **Alias record**, not CNAME. For subdomains, both work but Alias is preferred (no extra DNS lookup, free queries).
+
 ### Key Documentation Links
 
 - [Control subnet traffic with NACLs](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-network-acls.html)
