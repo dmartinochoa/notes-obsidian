@@ -79,11 +79,31 @@ Use this as your **final reference document** — read it daily, drill from it, 
 
 ### Secrets Manager rotation Lambda (4 steps)
 
-`createSecret` → `setSecret` → `testSecret` → `finishSecret`
+When Secrets Manager rotates a secret it invokes a Lambda that runs through these 4 stages **in order**:
 
-- AWSCURRENT, AWSPENDING, AWSPREVIOUS versions
-- Auto-rotation natively supported for RDS, Redshift, DocumentDB
-- Cross-account access via resource policy
+| Step | What happens |
+|---|---|
+| **`createSecret`** | Lambda generates a new secret value and stores it as a new version of the secret labeled **AWSPENDING** |
+| **`setSecret`** | Lambda applies the new secret to the actual service (e.g., updates the password on the RDS user) |
+| **`testSecret`** | Lambda verifies the new value works (test connection with new password) |
+| **`finishSecret`** | Lambda swaps the **AWSCURRENT** label from the old version to the new version (old becomes AWSPREVIOUS) |
+
+**Version labels (staging labels)** — these are pointers Secrets Manager maintains:
+- **AWSCURRENT** — the "active" version that apps retrieve by default (calling `GetSecretValue` returns this)
+- **AWSPENDING** — the new candidate version during rotation (not yet active)
+- **AWSPREVIOUS** — the previous version (kept for rollback)
+
+**Auto-rotation built-in support** is LIMITED. Secrets Manager ships ready-made Lambda rotation templates for:
+- Amazon RDS (MySQL, PostgreSQL, MariaDB, Oracle, SQL Server)
+- Amazon DocumentDB
+- Amazon Redshift
+
+**For anything else (SSH keys, API tokens, third-party credentials, OAuth keys, etc.):**
+- You must **write your own Lambda function** implementing the 4 steps above
+- Schedule it via the rotation configuration (cron-like rotation interval)
+- **Audit always goes through CloudTrail** — Secrets Manager doesn't have built-in audit logging to S3
+
+**Cross-account access**: attach a **resource policy** to the secret allowing the other account's principal, plus that principal needs KMS permissions on the encryption key.
 
 ### S3 Object Lock + Glacier Vault Lock
 
@@ -141,10 +161,22 @@ KMS Grants — programmatic temporary delegation, no service principals as grant
 
 ### VPC endpoint policy mechanics
 
-- Action must be **runtime action** of target service (`execute-api:Invoke`, `s3:GetObject`, `kms:Decrypt`)
-- NEVER `ec2:*VpcEndpoint*` (that's for managing the endpoint object)
-- Default policy = full access; replace to restrict
-- Count distinct resource IDs (not duplicates)
+A VPC endpoint policy is **attached to the endpoint object itself** and controls which API actions can be invoked through that endpoint.
+
+**Two categories of action — only one belongs in an endpoint policy:**
+
+| Action category | Example | Belongs in endpoint policy? |
+|---|---|---|
+| **Runtime action** (data plane) — the actual service operations | `s3:GetObject`, `kms:Decrypt`, `execute-api:Invoke`, `dynamodb:GetItem`, `sqs:SendMessage` | ✅ **YES** — this is what flows through the endpoint |
+| **Admin action** (control plane) — managing the endpoint resource itself | `ec2:CreateVpcEndpoint`, `ec2:DeleteVpcEndpoint`, `ec2:ModifyVpcEndpoint` | ❌ NO — those go in IAM policies, never in endpoint policy |
+
+If you see `ec2:*VpcEndpoint*` in an endpoint policy → instant elimination (construction error).
+
+**Other mechanics**:
+- **Default endpoint policy = `"Action": "*"` on `"Resource": "*"`** — full passthrough until you replace it
+- Endpoint policy is **additive ANDed** with IAM identity policy and resource-based policy — all must allow
+- When counting resources for a policy, **count distinct resource ARNs**, not duplicate references
+- Endpoint policy doesn't grant — it caps (same model as SCPs)
 
 ### Network protection services (when to pick each)
 
@@ -403,34 +435,53 @@ Never:
 
 **Policy evaluation order**: Explicit Deny → SCP → Resource policy → Identity policy → Permission boundary → Session policy → Implicit Deny.
 
-**`iam:PassRole`** vs **`sts:AssumeRole`**:
-- PassRole = user HANDS a role to a SERVICE (e.g., Lambda execution role)
-- AssumeRole = principal BECOMES a role
+Reads as: at any layer, an Explicit Deny wins. Otherwise, the action must be allowed at every layer that applies (SCP if in an Org, resource policy if cross-account, identity policy, boundary if attached, session policy if applicable). If nothing explicitly allows → implicit Deny.
 
-**Permissions Boundary use case**: delegation — let team create new roles but cap what those roles can do.
+**`iam:PassRole`** vs **`sts:AssumeRole`** (commonly confused):
+- **PassRole** = user HANDS a role to a SERVICE so the service can use it. Examples: when you create a Lambda function and specify its execution role, you need `iam:PassRole` on that role. Same for EC2 instance profiles, ECS task roles, CodeBuild service roles.
+- **AssumeRole** = principal BECOMES a role temporarily, getting back STS credentials. Examples: cross-account access ("switch role"), federated user gets IAM credentials, EC2 instance retrieves credentials from its instance profile.
+- **Quick rule**: If the role is being given to a service to wear, that's PassRole. If a user/service is taking on the role themselves, that's AssumeRole.
+
+**Permissions Boundary use case** — the delegation pattern:
+- Let a team create new IAM roles (so they don't bottleneck on the security team)
+- BUT cap what those new roles can do (so they can't create god-mode roles)
+- Implement via an SCP requiring all roles created to attach a specific boundary
+- Example SCP condition: `"iam:PermissionsBoundary": "arn:aws:iam::123:policy/DevBoundary"`
 
 **STS regional vs global endpoints**:
-- Global STS (`sts.amazonaws.com`) = v1 tokens, fail in opt-in regions
-- Regional STS (`sts.<region>.amazonaws.com`) = v2 tokens, work everywhere
+- **Global STS** (`sts.amazonaws.com`) = legacy single endpoint in us-east-1, returns **v1 session tokens** (smaller). v1 tokens **fail in opt-in regions** (Bahrain, Cape Town, Hong Kong, Jakarta, Hyderabad, Melbourne, etc.) because those regions don't recognize them.
+- **Regional STS** (`sts.<region>.amazonaws.com`) = per-region endpoint, returns **v2 session tokens**. Work in ALL regions including opt-in.
+- **Best practice**: set SDK to use regional endpoints (`AWS_STS_REGIONAL_ENDPOINTS=regional`).
 
-**Condition key operator-value typing**:
-- `DateLessThan` needs ISO 8601 timestamp, not seconds
-- `aws:MultiFactorAuthAge` is Numeric (seconds)
-- `MaxSessionDuration` is NOT a condition key (it's a role attribute)
+**Condition key operator-value typing** — get the operator right or the policy silently fails open:
+- `DateLessThan` / `DateGreaterThan` need **ISO 8601 timestamp** like `2026-12-31T23:59:59Z`, NOT a number of seconds
+- `aws:MultiFactorAuthAge` is **Numeric** (seconds since MFA auth) — use `NumericLessThan` operator
+- `MaxSessionDuration` is **NOT a condition key** — it's an **attribute of the role itself**, set at role creation. It defines the upper bound; the actual session duration is set by `DurationSeconds` on `AssumeRole` call. Don't use it in a policy Condition.
 
-**IAM Paths** = directory-like grouping (`/platform/`, `/product/`); use with SCPs for delegation patterns.
+**IAM Paths** = a directory-like prefix in an IAM resource ARN. Example: a role named `DevOpsAdmin` with path `/platform/` has ARN `arn:aws:iam::123:role/platform/DevOpsAdmin`. Paths let you:
+- Use wildcards in IAM policies (`arn:aws:iam::*:role/platform/*` matches all roles under /platform/)
+- Implement the delegation pattern: "Team A can create roles only under `/teamA/`" via SCP/boundary using path-based wildcards
+- Visually organize roles (no functional effect beyond ARN pattern matching)
 
-**Identity-based policy vs Resource-based policy**: only resource-based policies have `Principal` element. If you see `Principal` in an answer marked as "identity-based" → eliminate.
+**Identity-based policy vs Resource-based policy** — fastest elimination signal:
+- **Identity-based** (attached to user/group/role): NO `Principal` element (the principal is the entity it's attached to)
+- **Resource-based** (attached to S3 bucket, KMS key, SQS queue, IAM role trust policy, etc.): REQUIRES `Principal` element
+- If a question says "identity-based policy" and the JSON has `Principal` → construction error, eliminate
+- If a question says "resource-based policy" and the JSON has no `Principal` → construction error, eliminate
 
-**Cross-account access requires BOTH**: identity policy in source + resource policy (or trust policy) in target.
+**Cross-account access requires BOTH**:
+- The source account: identity policy on the principal (user/role) allowing the action
+- The target account: resource policy (or role trust policy if assuming a role) allowing the source principal
+- Either side alone is insufficient. This is why cross-account is "two-key auth."
 
 **AD federation 2-step elimination**:
-1. AD Connector + trust = construction error (Connector is a proxy, can't have trusts)
-2. Among "Managed AD + trust" options for IAM Identity Center → must be 2-way
+1. **AD Connector + trust** = construction error. AD Connector is just a **proxy/gateway** to your on-prem AD; it has no directory of its own. You cannot establish a forest/realm trust with a proxy.
+2. Among "Managed Microsoft AD + trust" options for IAM Identity Center → it must be a **2-way trust** (Identity Center needs to enumerate users/groups bidirectionally for assignments). One-way trusts work for some scenarios but not Identity Center user enumeration.
 
 **Cognito User Pool vs Identity Pool**:
-- User Pool = authentication (JWT tokens)
-- Identity Pool = AWS credentials (STS tokens for client-side AWS access)
+- **User Pool** = AUTHENTICATION service (a managed user directory). Returns **JWT tokens** (ID token, access token, refresh token). Use it for app sign-up/sign-in.
+- **Identity Pool** (now called Cognito Federated Identities) = AUTHORIZATION exchange. Takes an authenticated token (from User Pool, Google, Facebook, SAML, etc.) and returns **temporary AWS STS credentials** so the client can directly call AWS services like S3, DynamoDB.
+- **Typical mobile/SPA flow**: User Pool authenticates → app calls Identity Pool → gets AWS creds → makes scoped S3 calls.
 
 ---
 
@@ -480,21 +531,25 @@ Common keywords that flip the answer:
 
 ### 5. Construction-error options (always wrong)
 
-These option patterns are wrong on construction:
-- `aws:SourceIp` with VPC endpoint traffic (doesn't fire)
-- Security group in S3 bucket policy as Principal/Condition (not supported)
-- Trust between AD Connector and on-prem AD (Connector is a proxy)
-- Lambda IAM policy attached directly to function (must be on execution role)
-- Resource policy with `Principal` claimed as identity-based policy
-- EC2 detach root volume from running instance (must stop first)
-- Private key in `authorized_keys` (public key goes there)
-- `MaxSessionDuration` as condition key (it's a role attribute)
-- `ec2:*VpcEndpoint*` in VPC endpoint policy (admin action, not runtime)
-- EventBridge SES as target (doesn't exist; use SNS)
-- "Cancel deletion" past the 7-30 day waiting period (irreversible)
-- AWS Support restores deleted KMS keys (impossible)
-- Root user has implicit access to KMS keys (false — must be in key policy)
-- ALB MTU 9001 across regions (cross-region is 1500)
+These option patterns are wrong on construction — recognize and eliminate instantly:
+
+- **`aws:SourceIp` with VPC endpoint traffic** — when traffic flows through a VPC endpoint (gateway or interface), the source IP visible to the service is the endpoint's internal IP, NOT the original caller. `aws:SourceIp` condition won't match expected values. Use `aws:SourceVpc` or `aws:SourceVpce` instead.
+- **Security group ID as Principal in S3 bucket policy** — S3 bucket policies can only have IAM principals (account, user, role, federated, service) as Principal. SGs are network-level constructs unknown to S3.
+- **Trust between AD Connector and on-prem AD** — AD Connector is just a proxy/gateway with no directory of its own. Forest trusts require a real directory. Use AWS Managed Microsoft AD instead.
+- **Lambda IAM policy attached directly to function** — Lambda IS the resource. The function HAS an execution role. Identity policies attach to that role, not to the function itself. (Resource-based "function policies" exist for invocation permissions but that's different.)
+- **Resource policy with `Principal` claimed as "identity-based policy"** — only resource-based policies have `Principal`. If the question labels a policy with Principal as "identity-based" → construction error.
+- **EC2 detach root volume from running instance** — root EBS volume cannot be detached from a running instance because the OS is actively using it. Must STOP the instance first.
+- **Private key in EC2 `authorized_keys`** — `authorized_keys` holds PUBLIC keys (the OS uses them to verify signatures from clients holding the matching private key). Private keys never leave the client.
+- **`MaxSessionDuration` as condition key** — it's a role attribute set at role creation (max value an AssumeRole call's `DurationSeconds` can request). Not a condition key for use in policies.
+- **`ec2:*VpcEndpoint*` in VPC endpoint policy** — those are EC2 admin actions (CreateVpcEndpoint, etc.). Endpoint policies hold the RUNTIME actions of the target service (`s3:GetObject`, `kms:Decrypt`, etc.).
+- **EventBridge SES as target** — Amazon SES is not a direct target type for EventBridge rules. Use SNS as the target, then SNS can email or trigger Lambda.
+- **"Cancel deletion" past the 7-30 day waiting period** — once the KMS key deletion completes, it's permanent. Cancel only works DURING the waiting period via `CancelKeyDeletion`.
+- **AWS Support restores deleted KMS keys** — impossible. Past the waiting period, the key material is gone. (Imported material is the only exception — you can re-import the same key material into a NEW key, but the old key ID is gone.)
+- **Root user has implicit access to KMS keys** — false. KMS is unique: root has NO implicit access. The default key policy includes a statement granting root access — delete that statement and you're locked out (AWS Support recovery only).
+- **ALB MTU 9001 across regions** — jumbo frames (9001 MTU) work within a region but cross-region VPC peering forces MTU 1500. No way to negotiate jumbo across regions.
+- **Promiscuous mode on EC2 ENI** — promiscuous mode (accepting packets not addressed to you) is not supported on AWS ENIs. AWS hypervisor filters traffic by destination MAC/IP. Use VPC Traffic Mirroring for packet capture instead.
+- **"Composite principal with every AWS service" in trust policy** — a trust policy's Principal defines what can ASSUME the role. Listing every service principal there is nonsensical (only services actually assuming the role belong). Trust policy is narrow; the role's permissions policy is what's broad.
+- **"Excluded administrators" from SCP** — SCPs apply to ALL principals in member accounts including root and admins. You cannot structurally exclude admins. The only way to exempt specific principals is with a `Condition` using `aws:PrincipalArn` NotEquals (and that gets fragile).
 
 ---
 
@@ -679,31 +734,32 @@ This section is the single highest-value review item. Read it daily.
 
 ### Construction errors (always wrong on sight)
 
-These option patterns are wrong by construction — eliminate immediately:
+These option patterns are wrong by construction — eliminate immediately. Each is annotated with WHY so you can recognize related variants:
 
-- `aws:SourceIp` matching VPC endpoint traffic (doesn't fire)
-- Security group ID as Principal in S3 bucket policy
-- Trust policy between AD Connector and on-prem AD (Connector has no identity)
-- IAM policy attached directly to Lambda function (must be on execution role)
-- "Identity-based policy" answer that includes `Principal` element
-- "Resource-based policy" answer without `Principal` element
-- EC2 detach root volume from running instance (must stop first)
-- Private key in EC2 `authorized_keys` (public key goes there)
-- `MaxSessionDuration` used as condition key (it's a role attribute)
-- `ec2:*VpcEndpoint*` action in VPC endpoint policy (admin action, not runtime)
-- EventBridge SES as target (SES not supported; use SNS)
-- "Cancel KMS deletion" past waiting period
-- "AWS Support restores deleted KMS keys" (impossible)
-- "Root user has implicit access to KMS keys" (false)
-- Cross-region peering with SG ID reference (CIDR only)
-- ALB MTU 9001 across regions (cross-region peering is 1500)
-- CloudWatch metric filter on S3 logs (CW Logs only)
-- Promiscuous mode on EC2 ENI (not supported)
-- Importing key material into Custom Key Store (default store only)
-- "VPC Peering" between a VPC and an AWS service (peering is VPC-to-VPC only)
-- CNAME at apex/root domain (DNS-level violation)
-- "Encryption context generates unique keys" (context is metadata, not key generation)
-- "Single endpoint for SSM" in private subnet (need three)
+- **`aws:SourceIp` matching VPC endpoint traffic** — endpoint traffic loses the original source IP; use `aws:SourceVpc` / `aws:SourceVpce` instead
+- **Security group ID as Principal in S3 bucket policy** — SGs are L4 network constructs; S3 policies only accept IAM principals
+- **Trust policy between AD Connector and on-prem AD** — AD Connector is a proxy with no directory; nothing to trust. Use AWS Managed Microsoft AD for trusts.
+- **IAM policy attached directly to Lambda function** — policies attach to the execution ROLE, not the function. (Resource-based "function policy" controls who can INVOKE, but that's a different thing.)
+- **"Identity-based policy" answer that includes `Principal`** — identity-based policies imply the principal (the entity they're attached to); they never have a Principal element
+- **"Resource-based policy" answer without `Principal`** — resource policies REQUIRE Principal (defines who is allowed to use the resource)
+- **EC2 detach root volume from running instance** — the OS holds it open; must stop first. Data volumes can be detached live.
+- **Private key in EC2 `authorized_keys`** — `authorized_keys` holds PUBLIC keys for verification; private keys stay with the client
+- **`MaxSessionDuration` used as condition key** — it's a role attribute (max value of DurationSeconds at AssumeRole), not a condition
+- **`ec2:*VpcEndpoint*` action in VPC endpoint policy** — those are admin actions for managing the endpoint; endpoint policies use runtime actions like `s3:GetObject`
+- **EventBridge SES as target** — SES isn't a target type. Use SNS, Lambda, or Step Functions; they can call SES.
+- **"Cancel KMS deletion" past waiting period** — `CancelKeyDeletion` only works while the key is still in `PendingDeletion` state (during the 7-30 day window)
+- **"AWS Support restores deleted KMS keys"** — KMS key material is gone after deletion completes. Imported keys allow re-importing the same material into a NEW key, but the original key ID is dead.
+- **"Root user has implicit access to KMS keys"** — KMS is unique. Root has access ONLY because the default key policy grants it. Delete that statement → root locked out (AWS Support recovery is the only way back).
+- **Cross-region peering with SG ID reference** — cross-region peering only supports CIDR-based SG rules, not SG ID references
+- **ALB MTU 9001 across regions** — cross-region traffic is capped at MTU 1500 regardless of instance type
+- **CloudWatch metric filter on S3 logs** — metric filters only work on CW Logs log groups. For S3 → Athena query + Lambda + PutMetricData.
+- **Promiscuous mode on EC2 ENI** — AWS hypervisor filters by destination; promiscuous capture isn't possible. Use VPC Traffic Mirroring for packet capture.
+- **Importing key material into Custom Key Store (CloudHSM-backed)** — Custom Key Store keys must be generated INSIDE the HSM. Imports only work in the default key store.
+- **"VPC Peering" between a VPC and an AWS service** — peering is VPC-to-VPC only. Use VPC endpoints for VPC-to-service.
+- **CNAME at apex/root domain** — DNS RFC forbids CNAME at the zone apex (e.g., `example.com` cannot be CNAME). Use Route 53 Alias record (an Alias looks like A or AAAA from the resolver's view).
+- **"Encryption context generates unique keys"** — encryption context is additional authenticated data (AAD) used for integrity verification and audit. It does NOT influence the key derivation. Unique keys per object come from DEKs (data encryption keys), which SSE-S3 / SSE-KMS generate per object automatically.
+- **"Single endpoint for SSM" in private subnet** — Session Manager needs THREE interface endpoints: `ssm`, `ssmmessages`, `ec2messages` ("SSM + two messages")
+- **"Restrict outbound traffic by modifying IAM role"** — IAM controls authorization to AWS APIs, not network traffic flow. Outbound network restriction = security groups, NACLs, route tables, or VPC config (in case of Lambda).
 
 ---
 
@@ -885,4 +941,947 @@ When troubleshooting "user can't access X" issues, check Deny statements first:
 
 *Updated June 1, 2026 (later) — added gaps from mini-test #2: RDS encryption, EC2 key rotation, Orgs password policy, Config tri-policy, API Gateway access logs, Parameter Store + KMS troubleshooting, DX encryption reinforcement, SG direction reinforcement, explicit Deny rule*
 
-*Last updated: May 30, 2026*
+---
+
+## ⚠️ June 3 mini-test misses (80% — 5 specific gaps)
+
+Mini-test #3 on June 3 returned 80% (20/25). All 5 misses below were specific factual gaps rather than recurring patterns. Each one is a single, well-defined fact worth memorizing.
+
+### Access key rotation — the disable-test-delete sequence
+
+When you need to rotate an access key (employee left, key leaked, periodic rotation), **the order matters**. Wrong order = downtime or unsafe rollback.
+
+**The canonical 5-step sequence**:
+
+```
+1. CREATE new access key (old key still active)
+2. UPDATE applications to use new key
+3. DISABLE old key  ←  NOT delete yet
+4. TEST that applications still work with old key disabled
+5. DELETE old key  ←  only after testing confirms success
+```
+
+**Why disable-not-delete in step 3**:
+- **Disable is reversible** (re-enable in seconds if something breaks)
+- **Delete is permanent** — once gone, no rollback
+- The window between disable and delete is your safety net to discover any missed application that still uses the old key
+
+**The seductive trap**: "Disable old key and revoke all active sessions."
+- Access keys are **long-lived credentials**, not session tokens. They don't have "sessions" to revoke.
+- The "revoke sessions" answer pattern appears for STS temporary credentials (an `aws:TokenIssueTime` condition can effectively invalidate sessions issued before a cutoff), but that's a different scenario.
+- For an IAM user access key compromise: disable the key (or rotate). The key itself IS the credential.
+
+**Construction-error variants**:
+- ❌ "Delete the old key immediately, then create the new one" — causes downtime + no rollback
+- ❌ "Delete the old key and revoke active sessions" — wrong concept (keys don't have sessions)
+- ❌ "Apply IAM policy disabling the user's temporary credentials" — keys aren't temporary credentials
+- ❌ "Use Lambda to rotate without testing" — skipping the test step risks production breakage
+
+**For STS / temporary credentials** (different scenario): use `aws:TokenIssueTime` condition with `DateGreaterThan` to invalidate sessions issued before a cutoff timestamp.
+
+### CloudFront SecurityHeadersPolicy — the managed response headers policy for MITM/XSS defense
+
+CloudFront ships **managed response headers policies** that you can attach to a distribution without writing custom Lambda@Edge. These are pre-built bundles of headers.
+
+**Key managed response headers policies**:
+
+| Policy name | What it adds | Defends against |
+|---|---|---|
+| **SecurityHeadersPolicy** | HSTS + Content-Security-Policy + X-Content-Type-Options + X-Frame-Options + Referrer-Policy + X-XSS-Protection | MITM (via HSTS), XSS, clickjacking, MIME sniffing |
+| **CORS-and-SecurityHeadersPolicy** | Above + CORS headers | When you need both |
+| **SimpleCORS** | Permissive CORS only | Simple cross-origin allow |
+| **CORS-With-Preflight** | CORS + preflight handling | Cross-origin POST/PUT with auth |
+| **CORS-With-Preflight-and-SecurityHeadersPolicy** | All combined | Full coverage |
+
+**HSTS specifically defends against MITM**:
+- HTTP Strict-Transport-Security header tells browsers "always use HTTPS for this domain for X seconds"
+- After first visit, the browser refuses to talk plaintext HTTP to that origin — even if the user types `http://`
+- Prevents SSL-stripping attacks where an attacker downgrades HTTPS to HTTP in transit
+
+**Question-to-answer mapping**:
+
+| Question phrase | Correct CloudFront answer |
+|---|---|
+| "Defend against man-in-the-middle" | **SecurityHeadersPolicy** (for HSTS) |
+| "Defend against XSS / clickjacking" | SecurityHeadersPolicy (for CSP + X-Frame-Options) |
+| "Cross-origin AJAX request" | CORS policy variant |
+| "Add custom security header not in any managed policy" | Custom response headers policy (or Lambda@Edge) |
+| "Lambda@Edge to inject HSTS" | ❌ Over-engineered when SecurityHeadersPolicy exists |
+
+**Construction-error variants**:
+- ❌ "BasicCORS to defend against MITM" — CORS is about cross-origin requests, not transport security
+- ❌ "Content-Security-Policy alone defends against MITM" — CSP defends against XSS/injection, not MITM
+- ❌ "Use Lambda@Edge for HSTS" — works but managed policy is simpler (less operational overhead)
+- ❌ "Geo restriction to defend against MITM" — geo restriction blocks countries, not active interception
+
+### Secrets Manager rotation — built-in scope is DATABASE-ONLY
+
+Secrets Manager has TWO concepts that get confused:
+
+1. **Built-in rotation templates** — AWS provides ready-made Lambda functions for specific services
+2. **Custom rotation** — you write your own Lambda following the 4-step contract
+
+**Built-in rotation supports ONLY these services**:
+- Amazon RDS (MySQL, PostgreSQL, MariaDB, Oracle, SQL Server)
+- Amazon DocumentDB
+- Amazon Redshift
+
+**For anything else** (SSH keys, third-party API keys, OAuth tokens, generic credentials), the answer pattern is always:
+
+```
+1. Store secret in Secrets Manager
+2. Write CUSTOM Lambda function implementing the 4-step rotation contract
+3. Configure rotation schedule (e.g., every 90 days) → Lambda fires
+4. CloudTrail captures all Secrets Manager API calls → S3 for audit
+```
+
+**Audit logging clarification**:
+- Secrets Manager does NOT have built-in audit logging to S3
+- All audit goes through **CloudTrail** (which captures Secrets Manager management + data events)
+- You configure CloudTrail to deliver to an S3 bucket
+- For per-secret access tracking, enable CloudTrail data events for Secrets Manager
+
+**Question-to-answer mapping**:
+
+| Question phrase | Right approach |
+|---|---|
+| "Rotate RDS password automatically" | Built-in Secrets Manager rotation |
+| "Rotate SSH key pairs every 90 days" | Secrets Manager + **custom Lambda** + CloudTrail |
+| "Rotate third-party API token" | Secrets Manager + custom Lambda + CloudTrail |
+| "Audit trail of secret access" | CloudTrail (not Secrets Manager native logging) |
+
+**Construction-error variants**:
+- ❌ "Enable automatic rotation for SSH keys in Secrets Manager" — auto-rotation doesn't support SSH keys
+- ❌ "Use Secrets Manager native audit logging" — Secrets Manager doesn't have native audit logging
+- ❌ "Use EC2 console to enable SSH key auto-rotation" — no such EC2 feature exists
+- ❌ "CloudWatch alarm on key age + Lambda to delete" — deleting keys without replacement = lockout
+
+### IAM Role anatomy — Trust Policy vs Permissions Policy
+
+A role has **TWO categories** of policy attached, and they answer different questions:
+
+| Policy type | Question it answers | How many? | Has Principal? |
+|---|---|---|---|
+| **Trust policy** (a.k.a. assume role policy) | WHO is allowed to assume this role? | **Exactly ONE** per role | ✅ YES (defines who can assume) |
+| **Permissions policy** (identity policy) | WHAT can this role do once assumed? | **0 to N** per role | ❌ NO (identity-based) |
+
+**Mental model — the role is a "doorway":**
+- **Door (trust policy)** → who has the key to enter? Defines the Principal.
+- **Room (permissions policy)** → what's available inside? Defines the actions/resources.
+
+**Trust policy example** (allows EC2 service to assume):
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Service": "ec2.amazonaws.com" },
+    "Action": "sts:AssumeRole"
+  }]
+}
+```
+
+**Permissions policy example** (what the role can do once assumed — S3 read):
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:ListBucket"],
+    "Resource": ["arn:aws:s3:::my-bucket", "arn:aws:s3:::my-bucket/*"]
+  }]
+}
+```
+
+**CLI mapping for `create-role`**:
+
+| Step | Command | What it does |
+|---|---|---|
+| 1. Create the role | `aws iam create-role --role-name X --assume-role-policy-document file://trust.json` | The `--assume-role-policy-document` parameter IS the trust policy. REQUIRED. |
+| 2. Attach managed permissions | `aws iam attach-role-policy --role-name X --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess` | Adds an AWS-managed permissions policy |
+| 3. Or inline permissions | `aws iam put-role-policy --role-name X --policy-name MyInline --policy-document file://perms.json` | Adds an inline permissions policy |
+
+**Policy attachment types (orthogonal to trust vs permissions)**:
+
+| Attachment style | What it means | Reusable? |
+|---|---|---|
+| **AWS-managed** | Policy authored and maintained by AWS (e.g., `AmazonS3ReadOnlyAccess`) | Yes, across many entities |
+| **Customer-managed** | Policy authored by you, stored as a standalone policy ARN | Yes, across many entities |
+| **Inline** | Policy embedded directly in a single user/group/role | No, lives only on that entity |
+
+**The exam trap**: "What policy is needed to allow EC2 to assume the role?" → **Trust policy**, NOT inline policy. Inline/managed/customer-managed are attachment styles for the permissions policy (the WHAT), not the trust mechanism (the WHO).
+
+**Construction-error variants**:
+- ❌ "Bucket policy" allows role assumption — bucket policy controls S3 bucket access, not role assumption
+- ❌ "Inline policy" allows role assumption — inline is just an attachment style; the trust policy is what governs assumption
+- ❌ "Managed policy" defines who can assume — managed/inline/customer-managed all describe permissions policies
+- ❌ Trust policy contains `Action: s3:GetObject` — trust policy actions are always `sts:AssumeRole` family
+
+### Lambda resource policy ≠ outbound control
+
+**Lambda has TWO permission concepts** that get conflated:
+
+| Concept | What it controls | Where attached |
+|---|---|---|
+| **Execution role** (identity policy) | What the Lambda CAN DO (outbound API calls to S3, DDB, etc.) | Attached to the role |
+| **Function policy** (resource-based) | WHO can INVOKE the Lambda (other AWS services, accounts) | Attached to the function itself |
+
+**Neither of these controls network outbound (internet) access**. That's a VPC-level concern.
+
+**Lambda's network model — TWO states**:
+
+| State | Network behavior | Internet? | Private VPC resources? |
+|---|---|---|---|
+| **Default (no VPC config)** | Runs in AWS-managed VPC | ✅ Yes (Lambda gets internet by default) | ❌ Cannot reach your VPC's private resources |
+| **VPC-attached** | Runs in your VPC subnets with ENIs | ❌ No (unless NAT Gateway added) | ✅ Yes (private subnet access) |
+
+**The exam pattern**: "Lambda must access private DynamoDB without internet exposure."
+
+**Right answer**:
+1. **Attach Lambda to a private subnet** in the VPC (now it has private VPC access, but no internet)
+2. **Add a VPC endpoint for DynamoDB** (Gateway endpoint — free) so Lambda can reach DynamoDB without leaving the VPC
+
+**Common confusion**:
+- ❌ "Use a resource policy on Lambda to block internet" — function policy controls INVOCATION, not outbound. There's no policy that controls Lambda's outbound internet.
+- ❌ "Configure DynamoDB to connect to a private subnet" — DynamoDB is a managed service; it doesn't sit in your subnet
+- ❌ "Use a resource policy on DynamoDB to restrict the VPC" — works (using condition keys) but unnecessary; VPC endpoint policy is the simpler answer
+- ❌ "Add NAT Gateway to prevent internet exposure" — NAT Gateway ENABLES outbound internet; doesn't restrict it
+
+**Lambda invocation patterns** (where function policy DOES matter):
+
+| Scenario | Use function policy? |
+|---|---|
+| S3 event triggers Lambda | ✅ Allow `s3.amazonaws.com` in function policy |
+| API Gateway invokes Lambda | ✅ Allow `apigateway.amazonaws.com` in function policy |
+| EventBridge rule targets Lambda | ✅ Allow `events.amazonaws.com` in function policy |
+| Cross-account invocation | ✅ Allow the other account's principal in function policy |
+| Lambda function URLs (public/restricted) | ✅ Configure auth and function policy |
+| Lambda calls other AWS services | ❌ That's the execution role's identity policy, not the function policy |
+| Restrict Lambda's outbound internet | ❌ Not possible via any policy; use VPC config |
+
+---
+
+## 🧭 Cross-cutting reflexes — synthesis of all sessions
+
+After three mock tests, the patterns that explain >80% of my misses:
+
+| Reflex | What to do | Triggers |
+|---|---|---|
+| **"Disable, then delete"** | When rotating credentials/keys, disable old before deleting | Access key rotation, RDS snapshot, etc. |
+| **"Where does the policy live?"** | Identify trust vs identity vs resource vs endpoint vs SCP vs boundary | Any policy question |
+| **"Does the action match the layer?"** | IAM controls API authz; SG controls network; endpoint policy filters endpoint traffic | "Block internet" / "restrict access" questions |
+| **"Is this the over-engineered option?"** | Simpler usually wins unless requirements demand complexity | "Minimum overhead" / "easily" / "simple" |
+| **"What's the question's keyword?"** | "Real-time" → events; "audit posture" → state; "single" / "all" — read literally | Every word-hunt question |
+| **"Construction error check"** | Eliminate impossible-by-design options first | Speed up by 30s/question |
+| **"Layer all the layers"** | Network reachability + IAM + endpoint policy + (resource policy if cross-account) | Endpoint / cross-account questions |
+
+---
+
+*Updated June 3, 2026 — added Tier 5 section for June 3 mini-test misses (Q4 access key rotation, Q7 SecurityHeadersPolicy, Q17 Secrets Manager rotation scope, Q21 trust policy vs inline, Q25 Lambda networking). Also deepened: Secrets Manager rotation Lambda steps, VPC endpoint policy mechanics (runtime vs admin actions), D4 IAM section (PassRole vs AssumeRole, IAM Paths, condition key typing, AD federation), construction errors with WHY annotations.*
+
+---
+
+## ⚠️ Tier 6 — Mock #1 (June 4) misses — 28 questions
+
+Mock #1 (full 65-question timed mock, ~3 hours) scored 55% (36/65). Below are detailed remediation notes for each miss. KMS-specific misses reference `kms-deep-dive.md` for full context.
+
+### Miss inventory at a glance
+
+| Q | Domain | Topic | Category |
+|---|---|---|---|
+| Q2 | D5 | S3 Access Points limitations | 🔴 Knowledge gap |
+| Q5 | D5 | EBS snapshot cross-account protection | 🟢 Defensibly correct |
+| Q6 | D2 | IR notification response (3-select) | 🟠 Trap |
+| Q11 | D3 | WAF rules validation | 🔴 Knowledge gap |
+| Q13 | D1 | CloudWatch Agent troubleshooting | 🔴 Knowledge gap |
+| Q15 | D5 | KMS GenerateDataKey | 🔴 Knowledge gap (see kms-deep-dive.md) |
+| Q16 | D3 | Account compromise response (3-select) | 🟠 Trap |
+| Q17 | D3 | DDoS resilient architecture (3-select) | 🔴 Knowledge gap |
+| Q21 | D4 | Admin permissions troubleshooting (2-select) | 🟡 Borderline (subtle wording) |
+| Q26 | D3 | NACL ephemeral ports | 🔴 Knowledge gap (foundational!) |
+| Q27 | D3 | DDoS revamp architecture (2-select) | 🟠 Trap |
+| Q28 | D2 | Layer 7 DDoS response (2-select) | 🔴 Knowledge gap |
+| Q31 | D5 | MFA BoolIfExists | 🔴 Knowledge gap (see kms-deep-dive.md) |
+| Q33 | D5 | Multi-region KMS replication | 🔴 Knowledge gap (see kms-deep-dive.md) |
+| Q35 | D3 | Compromised EC2 access control | 🔴 Reading miss |
+| Q38 | D3 | GuardDuty trusted IP list precedence (2-select) | 🔴 Knowledge gap |
+| Q40 | D2 | AWS abuse notice response | 🟠 Trap |
+| Q41 | D1 | WAF analytics architecture | 🔴 Knowledge gap |
+| Q46 | D6 | Service Catalog launch constraint | 🔴 Knowledge gap |
+| Q47 | D4 | CloudFront origin restriction (2-select) | 🔴 Knowledge gap |
+| Q51 | D5 | Firewall Manager web ACL behavior | 🟠 Trap |
+| Q53 | D3 | GuardDuty DNS log analysis | 🔴 Knowledge gap |
+| Q54 | D5 | EBS encryption for existing ASG | 🟠 Trap |
+| Q55 | D4 | KMS CreateGrant for EBS (2-select) | 🔴 Knowledge gap (see kms-deep-dive.md) |
+| Q58 | D5 | Cross-account KMS for ASG (2-select) | 🔴 Knowledge gap (see kms-deep-dive.md) |
+| Q59 | D2 | EC2Launch v2 password reset (3-select) | 🔴 Knowledge gap |
+| Q60 | D3 | Block IMDS access | 🟢 Defensibly correct |
+| Q63 | D3 | GuardDuty trusted IP issues (2-select) | 🔴 Knowledge gap |
+| Q64 | D1 | CloudTrail validation scope (2-select) | 🟡 Borderline (bad question) |
+
+---
+
+### Q2 — S3 Access Points limitations
+
+**Question**: Which configuration characteristics apply when defining access points for S3 buckets? (Select 3)
+
+**You picked**: "Aliases for S3 Access Points are interchangeable with S3 bucket names. Aliases can be used as a logging destination for AWS CloudTrail logs and S3 server access logs."
+
+**Correct answer included**: "You can only use access points to perform operations on objects" + "Cross-account access points don't grant access until permissions from bucket owner" + "You can't configure Cross-Region Replication through an access point"
+
+**The trap**: The first half of your pick is TRUE (aliases ARE interchangeable with bucket names). The second half is FALSE (aliases CANNOT be used as logging destinations).
+
+**Key facts about S3 Access Points**:
+- Each access point has its own IAM policy + network controls (VPC-restricted possible)
+- Aliases are auto-generated; usable wherever bucket name works
+- Aliases CANNOT be CloudTrail/S3 server access log destinations
+- After creation, VPC configuration CANNOT be changed (must recreate)
+- Cross-account access points need bucket owner permission too
+- Cannot use access points as replication destination
+- Access points support HTTPS only
+
+**Discriminator**: when a multi-clause option says "X is true AND Y is true" — both must be true. Read each clause separately.
+
+---
+
+### Q5 — EBS snapshot cross-account protection
+
+**Already covered above and in detail mid-mock.** Your answer was technically flawed but the question's "correct" answer is also flawed (cross-account doesn't prevent deletion of source CMK). For exam: pick cross-account + share CMK + customer-managed key. For real architecture: also re-encrypt with destination CMK + Backup Vault Lock.
+
+**Cheatsheet patch**: See KMS deep-dive "Cross-account KMS patterns" section.
+
+---
+
+### Q6 — IR notification response (3-select)
+
+**Question**: After receiving AWS suspicious activity notification, which 3 actions are needed BEFORE responding to AWS Support?
+
+**You picked**: Got 2 right (CompromisedKeyQuarantineV2 check + Access key rotation). **Missed**: "If you must retain an EC2 instance for regulatory/legal reasons, create EBS snapshot before terminating."
+
+**Your wrong pick**: "If exposed EC2 cannot be shut down, move it to Isolation VPC to contain exposure while keeping the instance working"
+
+**Why the wrong pick fails**: **You cannot move a running EC2 instance between VPCs.** Isolation VPC pattern requires shutting down → relaunching in new VPC. The option's claim about "having the ability to keep the instance working" is a construction error.
+
+**Why the correct pick is right**: Forensic preservation BEFORE termination — even if you must terminate for compliance, snapshot first to preserve evidence.
+
+**Construction error to memorize**: "Move running EC2 between VPCs without restart" = impossible.
+
+**Also note**: "An IAM principal can have up to five access keys" — actual limit is **TWO** access keys per IAM user. The "5 keys" number poisons that whole option.
+
+---
+
+### Q11 — WAF rules validation
+
+**Question**: How can the engineer validate AWS WAF rules are working?
+
+**You picked**: "AWS WAF reports metrics once a minute to CloudTrail. Use statistics in Amazon CloudTrail to gather insights about WAF responses."
+
+**Correct**: "Enable WAF comprehensive logs that are delivered through Amazon Kinesis Firehose to a destination of your choice."
+
+**The trap**: Your option said **CloudTrail** for WAF metrics. WAF reports metrics to **CloudWatch**, not CloudTrail. If the option had said "CloudWatch" it would have been correct (CloudWatch metrics from WAF run at 1-minute granularity).
+
+**WAF logging architecture**:
+- **CloudWatch Metrics** (1-minute granularity): for monitoring rule counts, allowed/blocked
+- **CloudWatch Logs**: WAF can ship logs directly here
+- **S3**: WAF can ship logs directly here
+- **Kinesis Data Firehose**: WAF can ship to Firehose → then to S3, Splunk, ES, etc.
+
+**For "full request inspection and rule debugging" → Kinesis Firehose logs** (full HTTP headers, which rules triggered, request body).
+**For "metrics-level monitoring" → CloudWatch** (counts only).
+
+**Construction error**: "WAF metrics to CloudTrail" — WAF doesn't write metrics to CloudTrail. CloudTrail captures WAF management API calls (CreateWebACL, etc.), not metrics.
+
+---
+
+### Q13 — CloudWatch Agent troubleshooting (2-select)
+
+**Question**: Why isn't the CloudWatch agent pushing log events?
+
+**You picked**: IAM permissions (correct) + "VPC endpoints" option (wrong)
+
+**Correct second pick**: "Creating an AMI AFTER the CloudWatch agent is installed can lead to errors in the CloudWatch agent."
+
+**Why your "VPC endpoints" pick was wrong**: CloudWatch Logs endpoint can be either public (via IGW/NAT) OR via VPC endpoint. Both work — no requirement to use VPC endpoint specifically.
+
+**Why the AMI timing matters**: When you create an AMI from an instance WITH the agent already running, the AMI captures instance-specific metadata (instance ID, etc.). Instances launched from that AMI have stale metadata → CW Agent breaks.
+
+**Best practice**: Install CW Agent AT LAUNCH (via UserData, CloudFormation, SSM Document) rather than baking into AMI.
+
+**Also valid reasons for missing logs**:
+- IAM role missing `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`, `logs:DescribeLogStreams`
+- Agent installed BEFORE AMI was created (stale metadata)
+- run_as_user parameter set to non-root WITHOUT log directory perms (works as non-root, but needs perms)
+
+**Construction errors**:
+- ❌ "VPC endpoints required for CW Logs" — public endpoint also works
+- ❌ "run_as_user must be root" — non-root works if permissions are correct
+- ❌ "Install agent only after creating AMI" — backward, install AT launch
+
+---
+
+### Q15 — KMS GenerateDataKey
+
+**See `kms-deep-dive.md` section "Envelope encryption" for full coverage.**
+
+TL;DR: Client-side encryption uses `kms:GenerateDataKey` (envelope pattern), NOT `kms:Encrypt` (4KB limit). The error "forbidden" on PUT means the IAM policy is missing `kms:GenerateDataKey`.
+
+---
+
+### Q16 — Account compromise response (3-select)
+
+**Question**: How to handle a compromised AWS account?
+
+**You picked**: Trusted Advisor security check + Inspector + AWS Git projects (got 1 right)
+
+**Correct 3**: Rotate all root/IAM access keys + Check AWS account bill + Use AWS Git projects
+
+**Why your other 2 picks were wrong**:
+- **Trusted Advisor security check**: provides general best-practice recommendations. NOT useful for confirming what specific resources were compromised.
+- **Amazon Inspector**: scans for vulnerabilities (known CVEs in software). NOT useful for detecting active compromise.
+
+**The right response actions**:
+1. **Rotate keys**: stops further unauthorized API calls
+2. **Check the bill**: unusual resource spikes (e.g., crypto mining EC2 fleet in another region) reveal what was created
+3. **AWS Git projects**: scan source repos for leaked credentials (Git Secrets tool)
+
+**Pattern**: For account compromise response, think CONTAINMENT (rotate creds) → DETECTION (bill, CloudTrail) → PREVENTION (Git Secrets to stop recurrence).
+
+**Construction trap**: "Use Inspector/Macie/Trusted Advisor to detect compromised resources" — these are general-purpose tools NOT designed for active compromise investigation. Use CloudTrail + bill review + GuardDuty findings for that.
+
+---
+
+### Q17 — DDoS resilient architecture (3-select)
+
+**Question**: 3 best practices for DDoS-resilient architecture.
+
+**You picked**: API Gateway edge-optimized endpoint (wrong) + others
+
+**Correct 3**:
+1. Use CloudFront with Forward all headers to API Gateway REGIONAL endpoint
+2. Register Elastic IPs as Protected Resources in Shield Advanced
+3. **Configure SGs to NOT use connection tracking** (allow all 0.0.0.0/0 0-65535)
+
+**Why your API Gateway edge-optimized pick was wrong**: 
+- Edge-optimized API GW uses an AWS-MANAGED CloudFront distribution that you can't control
+- For DDoS mitigation, you want YOUR OWN CloudFront distribution with WAF
+- So: API GW REGIONAL endpoint + YOUR CloudFront in front = better control
+
+**SG connection tracking trick**:
+- SGs are stateful — they track connections by default
+- Under DDoS, the connection table can fill up → new connections rejected
+- Workaround: rules covering all traffic (0.0.0.0/0, 0-65535) make connections UNTRACKED
+- Untracked connections = no table fill = better DDoS resilience
+
+**Construction trap**: 
+- "NLB routes based on content" — false (NLB is L4, doesn't see HTTP content)
+- "WAF on S3 buckets" — false (WAF supports CloudFront/ALB/API GW/AppSync only)
+- "API Gateway edge-optimized for DDoS protection" — gives less control vs regional + own CloudFront
+
+---
+
+### Q21 — Admin permissions troubleshooting (2-select)
+
+**Question**: IAM entity has admin permissions but receives AccessDenied. Why? (Select 2)
+
+**You picked**: VPC endpoint policy (correct) + permissions boundary description (wrong)
+
+**Correct second pick**: "A session policy is in place and is causing an authorization issue"
+
+**Why your second pick was wrong**: The option said "permissions boundary defines maximum permissions an identity-based policy can grant to an entity" — TRUE so far. Then: "Check for any restrictive permissions boundary referenced by the **concerned resource-based policy**." The mention of "resource-based policy" is the trap — permissions boundary is on the principal, NOT referenced by resource policies.
+
+**Permissions boundary basics**:
+- Attached to IAM user or role (NOT resource)
+- Sets MAXIMUM permissions the entity can have
+- Effective permissions = identity policy ∩ permissions boundary
+- The boundary doesn't reference resource-based policies; it's its own layer
+
+**Session policy**:
+- Passed when creating a temporary session (`AssumeRole`, `GetFederationToken`)
+- Further narrows the role's permissions for that session only
+- Check CloudTrail logs for `AssumeRole` API calls to see if session policy was passed
+
+**Layers to check when admin gets AccessDenied**:
+1. Explicit Deny in any policy
+2. SCP in Organizations
+3. VPC endpoint policy (if routed through endpoint)
+4. Resource-based policy
+5. IAM identity policy
+6. **Permissions boundary** (per-principal cap)
+7. **Session policy** (per-session cap)
+
+---
+
+### Q26 — NACL ephemeral ports (FOUNDATIONAL)
+
+**Question**: EC2 has SG allowing inbound HTTP from 0.0.0.0/0 + NACL allowing inbound HTTP from 0.0.0.0/0 (both with default outbound). What's missing for the EC2 to respond?
+
+**You picked**: "The configuration is complete" — WRONG.
+
+**Correct**: "An outbound rule must be added to the NACL to allow the response to be sent to the client on the ephemeral port range."
+
+**Why this is fundamental**: 
+- **Security Groups are STATEFUL** — return traffic for an allowed inbound connection is automatically allowed back out
+- **NACLs are STATELESS** — must explicitly allow both directions
+
+When client (browser) connects to your EC2:
+- Source port (browser's): random ephemeral (1024-65535 typically)
+- Destination port: 80
+- For your server to respond, packet flows:
+  - OUTBOUND from EC2 with source port 80, destination port = client's ephemeral (1024-65535)
+
+**Your NACL must allow OUTBOUND on ports 1024-65535** for return traffic.
+
+**Ephemeral port ranges by OS**:
+- Linux: 32768-60999
+- Windows Server 2003: 1025-5000
+- Windows Server 2008+: 49152-65535
+- Mac OS: 49152-65535
+
+**For exam: allow outbound 1024-65535** to cover all OS variants.
+
+**The reflex**: when you see NACL + connection problem → check BOTH directions. SGs handle stateless implicitly; NACLs don't.
+
+**Construction trap**: "SG outbound rule for return traffic" — SGs are stateful, no outbound rule needed for return traffic.
+
+---
+
+### Q27 — DDoS revamp architecture (2-select)
+
+**Question**: After DDoS attack, how to revamp security for an EC2-hosted website with RDS backend and static images?
+
+**You picked**: "Configure ASG + WAF" (wrong) + correct option
+
+**Correct 2**:
+1. Use Amazon Route 53 (provides DDoS protection via Shield Standard + shuffle sharding + anycast)
+2. Move static content to S3 + CloudFront distribution + WAF on the distribution
+
+**Why "ASG + WAF" is wrong**:
+- **WAF cannot attach directly to ASG** or EC2 instances
+- WAF supports: CloudFront, ALB, API Gateway, AppSync, Cognito User Pools
+- For EC2-hosted sites: must front with CloudFront or ALB to use WAF
+
+**Why Route 53 helps with DDoS**:
+- Provides DNS resilience under query floods
+- Shuffle sharding + anycast spread traffic across edge locations
+- Shield Standard auto-protects Route 53 from L3/L4 attacks
+- Health-checks + failover for resilient routing
+
+**Static content offload benefits**:
+- S3 handles massive request rates natively
+- CloudFront caches at edge → reduces origin load
+- WAF on CloudFront blocks attacks at edge before hitting origin
+
+**Construction trap**: "WAF in front of ASG" — WAF doesn't attach to ASG/EC2. Always need CloudFront/ALB/API GW intermediary.
+
+---
+
+### Q28 — Layer 7 DDoS response (2-select)
+
+**Question**: Application-layer DDoS is underway. Immediate response actions?
+
+**You picked**: GuardDuty + correct CloudWatch metric (got 1 right)
+
+**Correct 2**:
+1. Create your own AWS WAF rules in your web ACL to mitigate the attack
+2. Contact AWS Support Center if you're a Shield Advanced customer
+
+**Why GuardDuty alone isn't enough**: GuardDuty DETECTS, doesn't BLOCK. For active L7 DDoS mitigation, you need WAF rules (blocking) and/or Shield Advanced support team (expert mitigation).
+
+**Shield Standard vs Advanced for L7**:
+- **Shield Standard**: auto-mitigates L3/L4 (network layer) attacks
+- **Shield Advanced**: same + L7 visibility + DRT support + cost protection
+- Shield Advanced does NOT auto-mitigate L7 to avoid blocking valid traffic
+- For L7: YOU write WAF rules OR Shield Advanced team helps you write them
+
+**Immediate response actions for L7 DDoS**:
+1. Identify attack pattern (which URLs/headers/user-agents)
+2. Write WAF rate-based rule or IP set rule to block source
+3. Contact AWS DDoS Response Team (DRT) if Shield Advanced
+4. NOT: GuardDuty (passive detection only)
+5. NOT: CloudWatch alarms (notification, not mitigation)
+6. NOT: SSM document (no native DDoS-blocking SSM template)
+
+---
+
+### Q31 — MFA BoolIfExists
+
+**See `kms-deep-dive.md` section "Pattern 4: Mandate MFA" for full coverage.**
+
+TL;DR: Use `Deny + BoolIfExists + aws:MultiFactorAuthPresent: false`. Catches all three caller scenarios including long-term access keys.
+
+---
+
+### Q33 — Multi-region KMS replication
+
+**See `kms-deep-dive.md` section "Multi-Region keys" for full coverage.**
+
+TL;DR: You CANNOT convert single-Region KMS key to multi-Region. Must create new multi-Region key from scratch, then re-encrypt data into a new bucket using the new key.
+
+---
+
+### Q35 — Compromised EC2 access control (READING MISS)
+
+**Question**: EC2 with IAM role accessing S3 might be compromised. Cannot terminate (critical app). How to block further S3 access fastest?
+
+**You picked**: "Update S3 bucket policy to deny IAM role + Create EBS snapshot + terminate the instance" — **violates the constraint**
+
+**Correct**: "Revoke all active sessions for the IAM role + Update S3 bucket policy + Remove IAM role from EC2 instance profile"
+
+**Why your pick failed**: The question explicitly said **"the instance cannot be immediately terminated."** You selected an option that includes terminating. That's a reading miss, not a knowledge gap.
+
+**The correct sequence**:
+1. **Revoke active sessions for the IAM role** (use `aws iam put-role-policy` with `aws:TokenIssueTime` deny condition) — invalidates any current STS sessions
+2. **Update S3 bucket policy to deny the IAM role** — explicit deny overrides everything
+3. **Remove IAM role from EC2 instance profile** — stops new sessions
+
+**Why "revoke sessions" matters first**: even if you remove the role from the instance profile, any STS session token already issued is still valid until expiration. Revoke first to invalidate active sessions.
+
+**For exam-day reading discipline**: 
+- Circle "**cannot terminate**" or similar constraints BEFORE reading options
+- Eliminate any option that violates the constraint
+- This is the #1 preventable miss category
+
+---
+
+### Q38 — GuardDuty trusted IP list precedence (2-select)
+
+**Question**: If same IP is in both trusted IP list AND threat list, what happens? Also which managed policy for full GuardDuty management?
+
+**You picked**: "Threat list processed first → generates finding" (wrong) + correct managed policy
+
+**Correct**: "Trusted IP list processed FIRST → NO finding generated"
+
+**Why**: Trusted IP list has PRIORITY. If an IP is in both:
+- GuardDuty checks trusted IP list first → match found → skip generating finding
+- The IP is effectively whitelisted regardless of threat list presence
+
+**Practical implication**: don't accidentally whitelist an IP that's also a known threat — your trusted list always wins.
+
+**GuardDuty list limits per account per region**:
+- 1 trusted IP list
+- 6 threat lists
+- IPs must be publicly routable (no private RFC1918)
+- Same region as your GuardDuty deployment
+
+**Permissions for full GuardDuty list management**:
+- `AmazonGuardDutyFullAccess` managed policy
+- PLUS `iam:PutRolePolicy` and `iam:DeleteRolePolicy` on the service-linked role (for upload/rename/delete operations)
+
+**Construction trap**: "Attach AWSServiceRoleForAmazonGuardDuty policy to IAM entities" — this is the service-linked role itself, you can't attach it to other entities.
+
+---
+
+### Q40 — AWS abuse notice response
+
+**Question**: Received abuse notice from AWS. What's the right response?
+
+**You picked**: "AWS Trust & Safety Team provides technical support, contact them" — WRONG
+
+**Correct**: "Review the abuse notice and reply explaining how you will prevent the abusive activity from recurring."
+
+**Why your pick failed**: **AWS Trust & Safety is a POLICY/LEGAL team, not technical support.** They:
+- Investigate abuse complaints
+- Send abuse notices to account owners
+- Track responses for compliance
+- Do NOT provide technical troubleshooting
+
+**For technical issues**: AWS Support (Developer, Business, Enterprise tiers) provides one-on-one technical help. This is a separate channel.
+
+**Response to abuse notice**:
+1. Review the report (logs are usually included)
+2. Investigate what was happening (CloudTrail, GuardDuty findings)
+3. **Respond within 24 hours** with explanation + remediation steps
+4. If no response in 24h → AWS may block resources or suspend account
+
+**Common abuse triggers**:
+- Compromised EC2 sending spam
+- Port scanning from your IPs
+- Crypto mining on stolen credentials
+- DDoS sources
+
+---
+
+### Q41 — WAF analytics architecture
+
+**Question**: Build a serverless WAF analytics dashboard with real-time data.
+
+**You picked**: "WAF logs to CloudWatch Logs + CloudWatch Logs Insights + QuickSight" — wrong
+
+**Correct**: "WAF → Kinesis Data Firehose → S3 → AWS Glue crawler → Athena table → QuickSight dashboards"
+
+**Why your pick failed**:
+- CloudWatch and QuickSight cannot directly connect
+- Even if they could, the question requires "build multiple dashboards" — better suited to BI tool with structured data (Athena tables)
+
+**The canonical WAF analytics pipeline**:
+```
+WAF → Firehose (real-time stream)
+     → S3 (storage)
+     → Glue Crawler (schema discovery)
+     → Athena (SQL queries)
+     → QuickSight (dashboards/visualizations)
+```
+
+**Why each component**:
+- **Firehose**: real-time WAF log delivery, no servers
+- **S3**: cheap long-term storage, queryable
+- **Glue Crawler**: auto-discovers schema from JSON logs
+- **Athena**: serverless SQL on S3 logs
+- **QuickSight**: BI dashboards with Athena as data source
+
+**Construction trap**: "Redshift Spectrum for serverless" — Redshift needs a cluster. NOT serverless.
+
+**Memorize**: "WAF analytics serverless" → Firehose+S3+Glue+Athena+QuickSight chain.
+
+---
+
+### Q46 — Service Catalog launch constraint
+
+**Question**: Org wants to add products to Service Catalog. End users should NOT need their own IAM credentials to launch products. Easiest way?
+
+**You picked**: "Use Service Actions" — WRONG
+
+**Correct**: "Add launch constraint(s) to each product in the Service Catalog portfolio"
+
+**Service Catalog constraints**:
+| Constraint type | Purpose |
+|---|---|
+| **Launch constraint** | Specifies the IAM role Service Catalog assumes when END USER launches/updates/terminates the product. Removes need for end-user IAM permissions. |
+| **Notification constraint** | SNS topic for stack events |
+| **Tag update constraint** | Allow/disallow end users from updating tags |
+| **Template constraint** | Narrow CloudFormation parameter values |
+| **Stack set constraint** | Multi-account deployment configuration |
+
+**Service Actions** (your wrong pick): operational tasks end users can perform AFTER provisioning (restart, snapshot, etc.). NOT for delegating launch permissions.
+
+**Why launch constraints exist**:
+- Without launch constraint: end users need their own permissions for CloudFormation + every AWS service the product uses
+- With launch constraint: Service Catalog assumes the launch role (which has the broad permissions); end users only need Service Catalog read perms
+
+**Constraint scope**: launch constraints attach at the PRODUCT-PORTFOLIO ASSOCIATION level (one product per portfolio). Cannot attach at portfolio-wide level.
+
+---
+
+### Q47 — CloudFront origin restriction (2-select)
+
+**Question**: Migrating static content from EC2 to S3 + CloudFront. Only specific IP ranges should access content. Pick 2.
+
+**You picked**: WAF ACL on CloudFront with IP match (correct) + missed second answer
+
+**Correct second pick**: "Configure an OAI (Origin Access Identity) or OAC (Origin Access Control) and associate it with the CloudFront distribution. Set S3 bucket policy to only allow the OAI/OAC."
+
+**Why both are needed**:
+1. **WAF IP restriction**: blocks unwanted IPs from reaching CloudFront (frontend)
+2. **OAI/OAC restriction**: ensures S3 bucket only accepts requests THROUGH CloudFront (backend)
+
+Without OAI/OAC, users could bypass CloudFront and access S3 directly (with the bucket URL), defeating the IP restriction.
+
+**OAI vs OAC**:
+- **OAI** (Origin Access Identity): older, IAM-based
+- **OAC** (Origin Access Control): newer (2022), preferred — supports SSE-KMS, all regions, POST/PUT, signature V4
+- AWS recommends OAC for new setups; OAI still works
+
+**The pattern**:
+1. Create OAC, attach to CloudFront distribution
+2. S3 bucket policy: only allow `Service: cloudfront.amazonaws.com` with `aws:SourceArn = distribution ARN`
+3. Block all other S3 public access
+
+**Construction trap**: "Create new SG for CloudFront" — CloudFront doesn't sit in a VPC, no SG applies. Use WAF + OAC instead.
+
+---
+
+### Q51 — Firewall Manager web ACL behavior
+
+**Question**: Engineer created web ACL via Firewall Manager policy, but it's not associated with in-scope resources. Why?
+
+**You picked**: First option about replacing web ACLs (wrong)
+
+**Correct**: "If `auto remediate any non-compliant resources` isn't turned on, the Firewall Manager-created web ACL won't be associated with in-scope resources."
+
+**Firewall Manager auto-remediation behavior**:
+| Auto-remediate | Replace existing ACLs | Result |
+|---|---|---|
+| OFF | (irrelevant) | WAF policy creates web ACL but doesn't attach to anything |
+| ON | OFF | Attaches to resources without existing ACL; skips resources WITH existing ACL |
+| ON | ON | Replaces existing ACLs with Firewall Manager-created ACL |
+
+**Why your pick was wrong**: The option you chose was complex (replacing existing Web ACLs), but the simple reason for "web ACL not associated" is the toggle being off.
+
+**Pattern recognition**: when a question asks "why isn't X working," check the most basic enablement toggle first before going to complex scenarios.
+
+---
+
+### Q53 — GuardDuty DNS log analysis
+
+**Question**: Company uses Active Directory (on-premises servers) for DNS. GuardDuty isn't reporting on DNS logs. Why?
+
+**You picked**: "GuardDuty analyzes DNS logs from Route 53 Resolver query logging feature" — wrong
+
+**Correct**: "If you use a custom DNS resolver (not AWS DNS), GuardDuty cannot access/process DNS data."
+
+**Why**: GuardDuty's DNS analysis uses the AWS internal DNS resolver. If your instances use:
+- Default AWS DNS resolver → GuardDuty sees DNS queries
+- Custom DNS (on-prem AD, OpenDNS, GoogleDNS, etc.) → GuardDuty BLIND to DNS
+
+**Practical impact**: 
+- If you must use custom DNS, lose GuardDuty DNS-based findings
+- Other GuardDuty findings (VPC Flow Logs, CloudTrail, Kubernetes audit) still work
+- Workaround: enable Route 53 Resolver query logging separately to S3 for DNS analysis
+
+**Why your "Route 53 Resolver query logging" pick was wrong**: GuardDuty's DNS analysis is INDEPENDENT of Route 53 Resolver query logging. They're two separate data streams. GuardDuty uses internal AWS DNS resolver data, not the query logging feature.
+
+---
+
+### Q54 — EBS encryption for existing ASG
+
+**Question**: Existing ASG with unencrypted EBS. Ensure ALL EBS volumes encrypted (current AND future).
+
+**You picked**: "Modify the launch template + Auto Scaling instance refresh" — wrong (modify isn't possible)
+
+**Correct**: "Enable default EBS encryption in EC2 console + use Auto Scaling instance refresh to replace existing instances."
+
+**Why your pick failed**: 
+- **Cannot modify launch templates** — you create new VERSIONS
+- The "modify" wording is a construction error
+
+**The simpler correct approach**:
+1. **Enable default EBS encryption** at account/region level (one click in EC2 console)
+2. **All new EBS volumes** in that region are encrypted by default
+3. Use ASG **instance refresh** to roll all existing instances → new ones launched WITH encrypted volumes
+4. Old unencrypted volumes terminated with old instances
+
+**Why this beats launch template version changes**:
+- No template editing required (default encryption applies regardless of template)
+- Cannot accidentally launch unencrypted volumes from old template version
+- Operationally simpler
+
+**Construction trap**: "Modify launch template" — templates are versioned and immutable; you create new versions.
+
+**Also note**: default EBS encryption setting doesn't affect EXISTING volumes — only new ones. To encrypt existing, snapshot+copy with encryption+create new volume from copy.
+
+---
+
+### Q55 — KMS CreateGrant for EBS
+
+**See `kms-deep-dive.md` section "EC2 + EBS encrypted (Q55 pattern)" for full coverage.**
+
+TL;DR: User starting EC2 with encrypted EBS needs `kms:CreateGrant` action + `kms:GrantIsForAWSResource: true` condition. EC2 service uses the grant to decrypt the EBS volume.
+
+---
+
+### Q58 — Cross-account KMS for ASG
+
+**See `kms-deep-dive.md` section "ASG + encrypted EBS (Q58 pattern)" for full coverage.**
+
+TL;DR: Two-side setup — Account A (key owner) key policy allows Account B; Account B creates KMS grant for ASG service-linked role.
+
+---
+
+### Q59 — EC2Launch v2 password reset (3-select)
+
+**Question**: Reset lost Windows administrator password using EC2Launch v2. Steps?
+
+**You picked**: "Select Offline Instance Option → Diagnose and Rescue → Reset Administrator Password" — wrong (that's EC2Launch v1, not v2)
+
+**Correct 3** (EC2Launch v2 sequence):
+1. Verify EC2Launch v2 service is running. Detach EBS root volume from the instance.
+2. Launch a temporary instance + attach the volume as SECONDARY. Delete the `.run-once` file at `%ProgramData%/Amazon/EC2Launch/state/.run-once`.
+3. Reattach the volume to ORIGINAL instance as ROOT. Connect using key pair to retrieve new admin password.
+
+**Why your pick was wrong**: Your selected option was for the OLDER EC2Launch v1 (via EC2Rescue tool with offline rescue feature). EC2Launch v2 uses a different approach — it generates a new password on launch if `.run-once` file is absent.
+
+**EC2Launch v1 vs v2**:
+| Aspect | EC2Launch v1 | EC2Launch v2 |
+|---|---|---|
+| Password reset | EC2Rescue tool with offline rescue | Delete `.run-once` file |
+| Configuration | XML config files | YAML config |
+| AMI selection for temp instance | Different version OK | DIFFERENT version REQUIRED (avoid disk signature collision) |
+
+**Critical detail**: temporary instance must use a DIFFERENT Windows version AMI (e.g., if original is 2019, use 2016 temp instance) to avoid disk signature collisions.
+
+---
+
+### Q60 — Block IMDS access
+
+**Question**: Block EC2 instance metadata service for shared instances.
+
+**You picked**: "Configure IMDSv2 (session-oriented method)" — defensibly correct in practice, but exam wants:
+
+**Correct**: "Implement local firewall rules using iptables-based restrictions"
+
+**Why both answers are defensible**:
+- **IMDSv2**: AWS-recommended hardening (mitigates SSRF attacks via session tokens). Doesn't fully block IMDS access, but makes exploitation much harder.
+- **iptables**: hard block at the OS level. Truly prevents specific processes from accessing 169.254.169.254.
+
+**The question's framing**: "block the EC2 instance metadata service" suggests TOTAL blocking, which only iptables achieves. IMDSv2 hardens but doesn't fully block.
+
+**iptables pattern**:
+```bash
+sudo iptables --append OUTPUT --proto tcp --destination 169.254.169.254 \
+  --match owner --uid-owner apache --jump REJECT
+```
+
+This rejects metadata requests from the apache user only.
+
+**For exam**: 
+- "Block IMDS for specific users/processes" → iptables
+- "Prevent SSRF exploitation of IMDS" → IMDSv2
+- "Completely disable IMDS" → `aws ec2 modify-instance-metadata-options --http-endpoint disabled`
+
+---
+
+### Q63 — GuardDuty trusted IP issues (2-select)
+
+**Question**: Trusted IP list is configured but findings still generated. Why? (Select 2)
+
+**You picked**: "Multi-account environments generate findings based on admin's trusted IPs" — wrong + correct option
+
+**Correct 2**:
+1. Ensure IP addresses are publicly routable IPv4 (no RFC1918 private addresses)
+2. Ensure trusted IP lists are in the SAME REGION as the GuardDuty findings
+
+**Trusted IP list constraints**:
+- Per-account, per-region (not global)
+- Only ONE trusted IP list per account per region (vs 6 threat lists)
+- Must be publicly routable IPv4 (no private addresses)
+- Affects VPC Flow Logs and CloudTrail findings (NOT DNS findings)
+- Trusted IP takes PRIORITY over threat IP (Q38)
+
+**Why your pick was wrong**: In multi-account setups, GuardDuty admin's THREAT lists propagate to members (so members benefit from admin's threat intelligence). TRUSTED lists do NOT propagate the same way — they're per-account.
+
+**Common configuration mistakes**:
+1. Adding private IPs (10.x, 172.16-31.x, 192.168.x) — GuardDuty ignores these in trusted IP lists
+2. Uploading list to wrong region
+3. Trying to have multiple trusted IP lists per account (only 1 allowed)
+4. Expecting trusted IPs to suppress DNS-based findings (they don't — DNS findings ignore IP lists)
+
+---
+
+### Q64 — CloudTrail validation scope (BAD QUESTION)
+
+**Already discussed above.** This was a borderline/bad question. The "correct" answer rewards narrow interpretation. Your answer was defensible.
+
+**Lesson**: when two options differ by a single adjective ("all" vs "business units"), the narrower one usually wins on exam graders' interpretation, even if the wording's not perfectly clear.
+
+---
+
+### Pattern summary across Mock #1 misses
+
+**Top clusters identified**:
+
+1. **KMS depth (6 misses: Q5, Q15, Q31, Q33, Q55, Q58)** — see `kms-deep-dive.md`
+2. **WAF/DDoS/CloudFront architecture (7 misses: Q11, Q17, Q27, Q28, Q41, Q47, Q51)** — needs dedicated study
+3. **GuardDuty configuration (3 misses: Q38, Q53, Q63)** — list constraints, DNS data sources
+4. **Reading constraint misses (1 critical: Q35)** — circle "cannot," "must not," "least" before answering
+5. **Niche services (Q2, Q13, Q46, Q59)** — Access Points, CW Agent installation, Service Catalog, EC2Launch v2
+
+**Behavior patterns to fix**:
+- ❌ Over-engineered options (Q54: modify launch template vs enable default encryption)
+- ❌ Plausible-sounding services with wrong purpose (Q11: CloudTrail metrics, Q40: AWS Trust & Safety tech support)
+- ❌ Construction errors I should have caught (Q6: move EC2 between VPCs, Q27: WAF on ASG)
+
+---
+
+*Updated June 4, 2026 — added Tier 6 section with full remediation notes for Mock #1 (28 misses). KMS-related misses cross-reference `kms-deep-dive.md`. WAF/DDoS deep dive coming June 5.*
+
+*Last updated: June 4, 2026*
