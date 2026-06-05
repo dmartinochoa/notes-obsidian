@@ -118,6 +118,41 @@ The pattern works for ALL key types, even imported:
 - **After the waiting period ends, the key is permanently gone**
 - AWS Support **CANNOT** recover a deleted key (don't believe options that claim this)
 
+### Lockout vs Deletion — what AWS Support can and can't do
+
+These two scenarios sound similar but are FUNDAMENTALLY different. Don't conflate them on the exam.
+
+| Scenario | What happened | Key state | Can AWS Support help? |
+|---|---|---|---|
+| **DELETION** (past waiting period) | Key material destroyed at HSM level | Deleted | ❌ **NO — gone forever** |
+| **DELETION** (during 7-30 day waiting period) | Key in PendingDeletion state | PendingDeletion | Doesn't need them — `CancelKeyDeletion` works |
+| **LOCKOUT** (key policy modified to remove all access) | Key still exists and functions, but no principal has access | Enabled (just unreachable) | ✅ **YES — can restore access via internal tooling** |
+
+**The deletion rule** (most commonly tested):
+- ScheduleKeyDeletion → 7-30 day wait → DELETED
+- Material destroyed; ciphertext encrypted under this key is permanently unreadable
+- AWS Support does NOT have a backup
+- This is a deliberate security property of KMS (insider-threat resistance)
+- Imported material exception: if YOU kept a backup of the original material outside AWS, you can re-import into a NEW key (different ID, same material) — NOT recovery, just re-import
+
+**The lockout scenario** (less common but recoverable):
+- You modify the key policy and accidentally remove the root delegation statement
+- Now NO principal in your account has key access
+- The KEY ITSELF still exists and FUNCTIONS — existing grants still work, encryption/decryption continues
+- But no one can MODIFY the key policy to restore access
+- **AWS Support CAN help here**: they have internal tooling to restore the root statement
+- From AWS docs: *"If you delete the default key policy statement that gives IAM users and roles in your account permission to use the KMS key, you must contact AWS Support to restore access to the key."*
+
+**Exam options to recognize**:
+
+| Option says | Verdict |
+|---|---|
+| "Contact AWS Support to retrieve the deleted KMS key" | ❌ Always WRONG — deletion is irreversible |
+| "AWS Support has a backup of all KMS keys" | ❌ Always WRONG |
+| "Use CancelKeyDeletion to recover during waiting period" | ✅ CORRECT for PendingDeletion state |
+| "Contact AWS Support to restore key policy access after lockout" | ✅ CORRECT for lockout scenario |
+| "Re-import the same key material into a new key if you have a backup" | ✅ CORRECT for imported material with external backup |
+
 ---
 
 ## Key material options — the imported material gotcha
@@ -230,23 +265,23 @@ The pattern works for ALL key types, even imported:
 
 Condition keys narrow when a permission applies. Critical for least-privilege key policies.
 
-| Condition key | What it checks | Common use |
-|---|---|---|
-| `kms:CallerAccount` | The AWS account of the calling principal | Restrict cross-account access |
-| `kms:ViaService` | Which AWS service is calling KMS on behalf of the principal | "This key can only be used through S3" |
-| **`kms:GrantIsForAWSResource`** | Whether the CreateGrant is initiated by an AWS service on user's behalf | EC2+EBS pattern (Q55) |
-| `kms:GrantOperations` | The list of operations a grant allows | Limit what grants can permit |
-| `kms:GranteePrincipal` | The principal that the grant is FOR | Limit who can be the grantee |
-| `kms:RetiringPrincipal` | The principal that can retire a grant | Control grant cleanup |
-| `kms:GrantConstraintType` | The type of constraint added to a grant | Fine-grained grant control |
-| `kms:EncryptionContext:<key>` | A specific encryption context key/value pair | Multi-tenant isolation |
-| `kms:EncryptionContextKeys` | The keys (not values) present in encryption context | Require certain context fields |
-| `kms:RequestAlias` | The alias used in the request | Differentiate access by alias |
-| `kms:ResourceAliases` | All aliases on the key being acted on | Tag-based key control |
-| `aws:PrincipalOrgID` | The AWS Organization ID of the caller | Restrict to your org (Q65) |
-| `aws:PrincipalIsAWSService` | Whether the caller is an AWS service principal | Differentiate service vs user calls |
-| `aws:SourceArn` | ARN of the resource making the call | Restrict to specific source |
-| `aws:SourceAccount` | Account of the source resource | Restrict to specific account |
+| Condition key                   | What it checks                                                          | Common use                             |
+| ------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
+| `kms:CallerAccount`             | The AWS account of the calling principal                                | Restrict cross-account access          |
+| `kms:ViaService`                | Which AWS service is calling KMS on behalf of the principal             | "This key can only be used through S3" |
+| **`kms:GrantIsForAWSResource`** | Whether the CreateGrant is initiated by an AWS service on user's behalf | EC2+EBS pattern (Q55)                  |
+| `kms:GrantOperations`           | The list of operations a grant allows                                   | Limit what grants can permit           |
+| `kms:GranteePrincipal`          | The principal that the grant is FOR                                     | Limit who can be the grantee           |
+| `kms:RetiringPrincipal`         | The principal that can retire a grant                                   | Control grant cleanup                  |
+| `kms:GrantConstraintType`       | The type of constraint added to a grant                                 | Fine-grained grant control             |
+| `kms:EncryptionContext:<key>`   | A specific encryption context key/value pair                            | Multi-tenant isolation                 |
+| `kms:EncryptionContextKeys`     | The keys (not values) present in encryption context                     | Require certain context fields         |
+| `kms:RequestAlias`              | The alias used in the request                                           | Differentiate access by alias          |
+| `kms:ResourceAliases`           | All aliases on the key being acted on                                   | Tag-based key control                  |
+| `aws:PrincipalOrgID`            | The AWS Organization ID of the caller                                   | Restrict to your org (Q65)             |
+| `aws:PrincipalIsAWSService`     | Whether the caller is an AWS service principal                          | Differentiate service vs user calls    |
+| `aws:SourceArn`                 | ARN of the resource making the call                                     | Restrict to specific source            |
+| `aws:SourceAccount`             | Account of the source resource                                          | Restrict to specific account           |
 
 ---
 
@@ -256,7 +291,7 @@ Condition keys narrow when a permission applies. Critical for least-privilege ke
 - Resource-based policy attached to the KMS key itself
 - Every key MUST have a key policy
 - Default key policy includes a statement granting root full access AND delegating to IAM
-- If you remove the root statement → **lockout** (only AWS Support can fix)
+- If you remove the root statement → **lockout** (recoverable via AWS Support — see "Lockout vs Deletion" below)
 
 **The unique KMS quirk**: unlike most AWS services, root has NO implicit access. Root works ONLY because the default key policy explicitly grants it.
 
@@ -280,16 +315,68 @@ Condition keys narrow when a permission applies. Critical for least-privilege ke
 - Used heavily by AWS services that need temporary key access (EC2 for EBS encryption, ASG for launching encrypted instances, RDS for snapshots)
 - Can be limited by constraints: encryption context, granted operations
 - Can be revoked (`RevokeGrant`) or retired (`RetireGrant`)
-- **Cannot grant to AWS service principals directly** — grantees must be account/user/role
+- **GranteePrincipal must be a real IAM principal ARN** — NOT a service principal string (see disambiguation below)
+
+### Service principal vs service-linked role (critical disambiguation)
+
+This trip people up because of similar-sounding names:
+
+| Concept | What it is | Example | Valid KMS grant grantee? |
+|---|---|---|---|
+| **Service principal** | A string identifier for an AWS service, used in trust/resource policies | `ec2.amazonaws.com`, `autoscaling.amazonaws.com` | ❌ **NO** |
+| **Service-linked role (SLR)** | An actual IAM role with an ARN, managed by AWS for a service | `arn:aws:iam::ACCT:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling` | ✅ **YES** |
+
+**KMS grants require IAM principal ARNs**, which include:
+- ✅ IAM user ARNs
+- ✅ IAM role ARNs (including service-linked roles)
+- ✅ AWS account ARNs (root)
+- ❌ Service principal strings (`*.amazonaws.com`)
+
+When AWS docs say "create a grant for the EC2 service" they actually mean **the EC2 service-linked role**, which has an IAM ARN. The shorthand is confusing.
+
+**SLR ARN format** (always recognize this pattern):
+```
+arn:aws:iam::<ACCOUNT>:role/aws-service-role/<SERVICE_DOMAIN>/<ROLE_NAME>
+```
+
+Common SLRs you'll see:
+- ASG: `.../autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling`
+- ELB: `.../elasticloadbalancing.amazonaws.com/AWSServiceRoleForElasticLoadBalancing`
+- ECS: `.../ecs.amazonaws.com/AWSServiceRoleForECS`
+
+### The grant flow: IAM policy ≠ grant itself
+
+A critical distinction: the IAM policy granting `kms:CreateGrant` is NOT the grant itself. It's the PERMISSION to create grants. The actual grant gets created dynamically when an AWS service needs it.
+
+```
+Setup (one-time):
+  User has IAM policy allowing kms:CreateGrant on the CMK
+  + condition: kms:GrantIsForAWSResource: true
+
+Runtime (every encrypted-EBS instance launch):
+  1. User calls ec2:RunInstances with encrypted EBS
+  2. EC2 service detects encrypted volume in the launch
+  3. EC2 service calls kms:CreateGrant ON THE USER'S BEHALF
+     - GranteePrincipal: EC2's service-linked role ARN
+     - Operations: Decrypt, GenerateDataKey, etc.
+  4. KMS checks: does the calling user have kms:CreateGrant perm? ✓
+     KMS checks: is the condition (GrantIsForAWSResource=true) satisfied? ✓
+  5. Grant is created on the KMS key (visible via kms:ListGrants)
+  6. EC2 uses the grant to perform crypto on the EBS volume
+  7. Instance boots with encrypted EBS attached
+```
+
+The IAM policy is **persistent permission to create grants**. The grants themselves are **ephemeral delegations** created at runtime.
 
 ### When to use which
 | Scenario | Use |
 |---|---|
 | Static permission for an account | Key policy |
-| Static permission for a user/role | IAM policy (if key policy delegates) |
+| Static permission for a user/role (long-lived workload) | IAM policy (if key policy delegates) + key policy |
 | Cross-account access | Key policy (must allow other account) + IAM in other account |
-| **AWS service needs temporary access** (EC2 launching encrypted EBS) | **Grant** (created by user with `kms:CreateGrant` permission) |
-| Time-limited / scoped permission | Grant with constraints |
+| **AWS service needs temporary access** (EC2 launching encrypted EBS, ASG scaling) | **Grant** (created by user/SLR with `kms:CreateGrant` permission, with `GrantIsForAWSResource` condition) |
+| Application on EC2 doing direct KMS crypto (envelope encryption of app data) | IAM policy on instance profile role + key policy |
+| Time-limited / operation-scoped permission | Grant with constraints |
 
 ---
 
@@ -340,6 +427,47 @@ The exam question (Q15): "client-side encryption library, what KMS action is mis
 
 In both cases, KMS sees `GenerateDataKey` + `Decrypt`, never `Encrypt` of bulk data.
 
+### Encryption layers — at-rest vs in-transit vs client-side (often confused)
+
+Three INDEPENDENT layers of protection. Don't conflate them on the exam:
+
+| Layer | Who controls | What it protects | When applied |
+|---|---|---|---|
+| **At-rest encryption (SSE-KMS)** | YOU (via your CMK) | Data sitting in S3/EBS/RDS storage | When data is written to disk |
+| **In-transit encryption (TLS / AWS backbone)** | AWS (automatic) | Data moving across the network | Always for inter-region / inter-AZ AWS traffic |
+| **Client-side encryption** | YOU (your code) | Data BEFORE it ever reaches AWS | In your application, before upload |
+
+**Key fact**: AWS automatically encrypts ALL inter-region traffic at the physical layer (and TLS at higher layers). You don't need to configure this. From AWS docs: *"All data flowing across the AWS global network that interconnects our datacenters and regions is automatically encrypted at the physical layer before it leaves our secured facilities."*
+
+**When S3 CRR re-encrypts a SSE-KMS object during replication**:
+- Source-region S3 calls `kms:Decrypt` → plaintext exists briefly in S3 service memory (server-side)
+- Plaintext flows to destination region over AWS-encrypted backbone (TLS-protected, not on public internet)
+- Destination-region S3 calls `kms:GenerateDataKey` → re-encrypts under dest key
+- Plaintext discarded from memory
+
+So the customer's KMS envelope is REMOVED and REAPPLIED, but the data is never on plaintext wire from the customer's perspective. AWS handles confidentiality on the backbone.
+
+**When you actually need client-side encryption**:
+- Compliance requires "AWS never sees plaintext" (strict HIPAA, certain financial regs)
+- You don't trust AWS-internal services to ever process your plaintext
+- You want cryptographic separation: AWS holds ciphertext only, you hold the keys
+
+Client-side encryption with the AWS Encryption SDK (or S3 Encryption Client / Database Encryption SDK) ensures:
+- AWS S3 stores only ciphertext
+- AWS never decrypts your data
+- Cross-region replication just moves ciphertext blobs (no re-encryption needed)
+- The customer's CMK does the unwrapping at decrypt time
+
+**Exam pattern recognition**:
+
+| Question framing | Right layer |
+|---|---|
+| "Data must be encrypted at rest with my CMK" | SSE-KMS |
+| "Data must be encrypted in transit between regions" | AWS handles automatically |
+| "AWS must never have access to plaintext" | Client-side encryption (AWS Encryption SDK) |
+| "Same encryption key must work in both regions for decryption" | Multi-Region KMS keys |
+| "Defense in depth: encrypted at rest AND in transit" | SSE-KMS (rest) + TLS to clients (transit) — both default behaviors |
+
 ---
 
 ## Cross-account KMS patterns
@@ -385,54 +513,162 @@ This is the textbook ASG + encrypted EBS pattern. Sharing snapshots is NOT suffi
 
 ## Multi-Region keys (the Q33 pattern)
 
-### What they are
-A set of related KMS keys in different regions with:
-- Same key ID (e.g., `mrk-1234abcd...`)
-- Same key material
-- Same key policy (initially; can diverge)
-- Independent rotation schedules (each region's replica rotates separately)
-- ARNs differ by region
+### Mental model: clones, NOT a single key
+
+**Multi-Region keys are a CLUSTER of region-specific KMS keys that share the same material.** They are NOT a single physical key that exists across regions — that doesn't exist in any AWS service. Each region's KMS service has its own physical key resource; multi-Region just means they are linked clones.
+
+```
+Primary multi-Region key (us-east-1)        Replica multi-Region key (us-west-1)
+─────────────────────────────────           ────────────────────────────────────
+Key ID:    mrk-1234abcd...                   Key ID:    mrk-1234abcd... ← SAME
+Material:  [encrypted bytes XYZ]             Material:  [encrypted bytes XYZ] ← SAME (cloned)
+Policy:    {...}                             Policy:    {...} (initially same, can diverge)
+ARN:       arn:aws:kms:us-east-1:...         ARN:       arn:aws:kms:us-west-1:... ← DIFFERENT
+Endpoint:  kms.us-east-1.amazonaws.com       Endpoint:  kms.us-west-1.amazonaws.com ← DIFFERENT
+```
+
+**The "same key in both regions" language in exam questions is shorthand for "same key ID + same material across regions."** You DO have multiple physical key resources (one per region), but they are **cryptographically equivalent** — ciphertext encrypted by one can be decrypted by another.
 
 ### Why they exist
-- Encrypt in Region A, decrypt in Region B without cross-region calls or re-encryption
-- Disaster recovery patterns
-- Compliance scenarios where data must stay in-region
+- Encrypt in Region A, decrypt in Region B **using a region-local KMS endpoint** (no cross-region call to KMS)
+- Disaster recovery patterns where data is replicated and must remain decryptable in the DR region
+- Compliance scenarios where data residency rules apply
+- Operational simplicity: same key ID everywhere, apps reference one identifier
 
 ### How to create
 1. `CreateKey` with `MultiRegion: true` in primary region → primary multi-Region key
-2. `ReplicateKey` to additional regions → replica multi-Region keys
+2. `ReplicateKey` to additional regions → replica multi-Region keys (material cloned)
 3. `UpdatePrimaryRegion` to change which region holds the primary (e.g., during failover)
 
 ### Critical limitations
 - **CANNOT convert a single-Region key to multi-Region** (Q33 trap)
 - **CANNOT convert a multi-Region key to single-Region**
 - **CANNOT replicate a multi-Region key between AWS partitions** (e.g., commercial ↔ GovCloud)
-- **Amazon S3 currently treats multi-Region keys as single-Region** — must replicate data separately
+- **Amazon S3 currently treats multi-Region keys as single-Region** for its own CRR — meaning S3 still RE-ENCRYPTS during replication (see below)
+
+### How S3 actually behaves with multi-Region keys (the nuance most miss)
+
+S3 supports multi-Region keys in SSE-KMS, but **S3 does NOT use the multi-region cryptographic features** for Cross-Region Replication. Specifically:
+
+- S3 CRR with SSE-KMS objects: source-region S3 **decrypts** with source key, then dest-region S3 **re-encrypts** with destination key
+- The cryptographic operations are REGION-LOCAL (each region's S3 calls its own region's KMS endpoint)
+- The reason it "just works" with multi-Region keys: both endpoints are instances of the same key set, with identical material — so the re-encryption is operationally seamless even though it technically happens
+
+**For non-S3 services** (Lambda, custom apps using AWS Encryption SDK, EBS): multi-Region keys provide TRUE cryptographic equivalence — you can decrypt a ciphertext in any region without re-encryption, as long as the replica exists there.
+
+**S3 is the exception**, not the rule. S3 still re-encrypts during CRR regardless of multi-Region key feature. But the multi-Region key still buys you:
+- Same key ID across regions (one alias works everywhere)
+- Same material (no cross-account key sharing needed for replication)
+- Consistent policy management (initially)
 
 ### The Q33 pattern (memorize)
-"Existing data encrypted with single-region key, want to replicate to second region with same key in both regions"
 
-**Correct approach:**
-1. Create a NEW S3 bucket in primary region
-2. Enable SSE-KMS encryption on the NEW bucket using a multi-Region KMS key (created from scratch)
-3. **Copy the existing data** from old bucket to new bucket (this re-encrypts with new multi-Region key)
-4. Set up S3 replication from new bucket to second region's bucket
+**Question scenario**: "Existing data encrypted with a single-Region KMS key in us-east-1. Need to replicate to us-west-1 with the same key in both regions."
 
-**Why other approaches fail:**
-- Converting existing single-Region key to multi-Region: NOT POSSIBLE
-- Sharing the existing key across regions: NOT POSSIBLE (single-Region keys can't be shared)
-- Using Lambda to copy with re-encryption: works but high operational overhead, daily frequency loses data
+**Why "the same key" requires migration**: 
+- The existing single-Region key in us-east-1 CANNOT be converted to multi-Region
+- The existing single-Region key CANNOT exist in us-west-1
+- Therefore the OLD data is encrypted under a key that will NEVER be available in us-west-1
+- Solution: re-encrypt all existing data under a NEW multi-Region key
+
+### What the "copy" step actually does (the mechanics)
+
+You're right that the existing data must be **decrypted and re-encrypted** to move it under the new key. The `aws s3 cp` between two SSE-KMS buckets with different KMS keys IS effectively a decrypt-then-encrypt operation:
+
+```
+For each object in the source bucket:
+
+1. S3 reads the object from OLD bucket
+   ↓
+2. S3 internally: kms:Decrypt with OLD single-Region key
+   → S3 has plaintext temporarily (server-side; never exposed to client if dest is also SSE-KMS)
+   ↓
+3. S3 internally: kms:GenerateDataKey with NEW multi-Region key
+   → Returns plaintext DEK + encrypted DEK (wrapped under new key)
+   ↓
+4. S3 encrypts plaintext with new DEK (envelope encryption)
+   ↓
+5. S3 writes encrypted object + new encrypted DEK to DESTINATION bucket
+```
+
+The "copy" terminology hides what's really a **crypto-translation operation**. The old key's material never leaves us-east-1, and the new key's material is used to wrap the new DEK. Result: same plaintext, different ciphertext, under different key custody.
+
+### Caller permissions for the migration copy
+
+For the copy operation to succeed, the principal initiating the copy needs:
+
+| Permission | On | Why |
+|---|---|---|
+| `s3:GetObject` | OLD bucket | Read the source object |
+| `kms:Decrypt` | OLD single-Region key | S3 needs to decrypt source EDK |
+| `s3:PutObject` | NEW bucket | Write to destination |
+| `kms:GenerateDataKey` | NEW multi-Region key | S3 needs to envelope-encrypt for dest |
+| `s3:PutObjectAcl` (optional) | NEW bucket | If preserving ACLs |
+
+For large buckets: use **S3 Batch Operations** with a "Copy" operation to parallelize at scale. Each object copy invokes the same crypto-translation flow.
+
+### Complete Q33 migration recipe
+
+```
+1. CreateKey (in us-east-1) with MultiRegion=true 
+   → primary multi-Region key (mrk-1234...)
+2. ReplicateKey (to us-west-1)
+   → replica multi-Region key (mrk-1234..., same ID, same material)
+3. CreateBucket new-bucket-east in us-east-1
+4. PutBucketEncryption new-bucket-east → SSE-KMS with mrk-1234 primary
+5. CreateBucket new-bucket-west in us-west-1
+6. PutBucketEncryption new-bucket-west → SSE-KMS with mrk-1234 replica
+7. PutBucketReplication new-bucket-east → new-bucket-west (CRR config)
+8. Copy data: old-bucket-east → new-bucket-east
+   (S3 decrypts with OLD key, encrypts with NEW multi-Region key)
+9. S3 CRR automatically replicates new-bucket-east → new-bucket-west
+   (S3 decrypts with NEW key in us-east-1, re-encrypts with NEW key in us-west-1)
+10. (Optional) Schedule OLD bucket + OLD single-Region key for deletion
+```
+
+After step 8, the new us-east-1 bucket holds data under the new key. After step 9, the us-west-1 bucket also holds data under the same multi-Region key set. Now BOTH regions have data encrypted under "the same key" (same ID, same material), satisfying the question's requirement.
+
+### Why other approaches fail
+- **Converting existing single-Region key to multi-Region**: NOT POSSIBLE — keys cannot change region scope
+- **Sharing the existing key across regions**: NOT POSSIBLE — single-Region keys are region-bound (KMS keys don't cross regions)
+- **Using Lambda for daily copy with re-encryption**: works but high operational overhead + data loss window between runs
+- **Using S3 replication with the OLD key**: replication will FAIL because the destination region cannot access the source-region-only key
 
 ---
 
 ## Service-specific KMS patterns
 
-### EC2 + EBS encrypted (Q55 pattern)
+### EC2 + KMS — three distinct entities (foundational)
+
+People conflate these three things. They're NOT the same:
+
+| Entity | What it is | What it does | When it interacts with KMS |
+|---|---|---|---|
+| **EC2 instance** | The VM running your OS | Runs your application code | Only if YOUR APP explicitly calls KMS |
+| **EC2 service** | AWS service managing the EC2 fleet | Provisions, terminates, attaches volumes | At LAUNCH time when attaching encrypted EBS |
+| **EC2 instance profile role** | IAM role attached to the instance | Provides credentials for runtime AWS calls FROM the app | Only when app calls KMS using its credentials |
+
+**Key insight**: EBS volume encryption/decryption is handled at the HYPERVISOR layer, INVISIBLE to the EC2 instance. The instance never directly calls KMS for EBS operations. The instance OS just sees a plain block device.
+
+```
+APPLICATION running on EC2 instance
+  ↓ reads/writes data
+KERNEL → sees normal block device
+  ↓
+EBS service (HYPERVISOR layer, INVISIBLE to instance)
+  ↓ encrypts/decrypts each block using volume's DEK
+  ↓ calls KMS for crypto operations
+PHYSICAL STORAGE (encrypted blocks)
+```
+
+So when EBS encryption is involved, **the instance is not the entity that needs KMS access** — the service launching the instance is. After launch, the hypervisor handles all crypto transparently.
+
+### EC2 + EBS at launch (Q55 pattern) — "user can't start encrypted instance"
 **Scenario**: IAM user with full EC2 permissions can't start an instance with encrypted EBS volumes.
 
-**Why**: EC2 needs to decrypt the EBS volume to launch the instance. EC2 doesn't have permission directly — it needs the USER to create a grant delegating decrypt to EC2.
+**Why**: At LAUNCH time, EC2 service needs to use the CMK to decrypt the EBS volume's DEK. EC2 doesn't have permission directly — it needs a grant. The user initiating the launch must have permission to create that grant.
 
-**Fix**:
+**Fix** (IAM policy attached to the user, NOT a grant itself):
 ```json
 {
   "Effect": "Allow",
@@ -444,9 +680,54 @@ A set of related KMS keys in different regions with:
 }
 ```
 
-**Why `GrantIsForAWSResource: true`**: limits the user to creating grants ONLY when an AWS service initiates the call. Prevents the user from creating arbitrary grants to other principals.
+**What actually happens at runtime**:
+1. User calls `ec2:RunInstances` with encrypted EBS in launch params
+2. EC2 service detects encrypted volume
+3. EC2 service calls `kms:CreateGrant` ON THE USER'S BEHALF
+   - GranteePrincipal: EC2 service-linked role ARN (an IAM role, NOT a service principal string)
+4. KMS validates the user has `kms:CreateGrant` permission + condition met (`GrantIsForAWSResource: true`)
+5. Grant is created; EC2 uses it to call `kms:Decrypt` on the volume key
+6. Instance launches with attached encrypted EBS
 
-**This pattern also applies to**: ASG launching encrypted instances, RDS launching encrypted DBs, snapshots being decrypted by snapshots operations.
+**Why `GrantIsForAWSResource: true`**: limits the user to creating grants ONLY when an AWS service initiates the call. Prevents the user from creating arbitrary grants to other principals (e.g., granting decrypt to a malicious user).
+
+**This pattern also applies to**: ASG launching encrypted instances, RDS launching encrypted DBs, snapshot operations.
+
+### EC2 + KMS for application-level encryption (NOT EBS)
+
+**Scenario**: Application on the EC2 instance wants to encrypt/decrypt data using KMS directly (e.g., encrypt secrets, sensitive customer data before storing).
+
+**This is a DIFFERENT pattern from EBS encryption.** Here:
+- The instance's APPLICATION makes direct KMS API calls
+- Uses the **instance profile role** as the authenticated principal
+- Needs `kms:GenerateDataKey` + `kms:Decrypt` (or `kms:Encrypt` for small data)
+- This is **IAM policy + key policy**, NOT a grant
+
+**Fix** (IAM policy attached to the instance profile role):
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "kms:GenerateDataKey",
+    "kms:Decrypt"
+  ],
+  "Resource": "arn:aws:kms:REGION:ACCOUNT:key/KEY_ID"
+}
+```
+
+Plus the key policy must allow this role (default key policy delegates to IAM, so IAM policy alone usually works).
+
+**Why IAM policy here, not a grant?** The application is persistent and makes ongoing KMS calls. Grants are for transient, service-initiated operations. Persistent app workloads use the standard IAM + key policy combo.
+
+### Decision tree: EC2 + KMS
+
+| What's the encryption for? | Who needs KMS access? | How? |
+|---|---|---|
+| EBS volume (at launch) | EC2 service (via service-linked role) | Grant (user has `kms:CreateGrant` with condition) |
+| EBS volume (at runtime, post-launch) | Nobody in user-controlled context — hypervisor handles transparently | N/A |
+| Application encrypts data files | Instance profile role | IAM policy + key policy |
+| Application decrypts S3 objects | Instance profile role | IAM policy + key policy |
+| Application uses Secrets Manager (SecureString) | Instance profile role | IAM policy + key policy |
 
 ### ASG + encrypted EBS (Q58 pattern)
 **Scenario**: ASG in Account B needs to launch instances with EBS encrypted by CMK in Account A.
@@ -454,8 +735,18 @@ A set of related KMS keys in different regions with:
 **Required setup (BOTH sides):**
 1. **Account A** (key owner): update key policy to allow Account B (`aws:PrincipalAccount = B`)
 2. **Account B** (launcher): create a KMS grant for the Auto Scaling service-linked role on the key
+   - GranteePrincipal: `arn:aws:iam::ACCOUNT_B:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling`
+   - This IS a real IAM role ARN (service-linked roles ARE IAM roles, distinct from service principal strings)
 
-The grant authorizes the service-linked role specifically to use the key during launches.
+**The grant authorizes the service-linked role** to use the key during launches. This is the same pattern as Q55 but across accounts:
+- Account B's ASG service initiates the launch (grant goes to ASG's SLR)
+- The ASG service does the launch via EC2 (downstream services use the grant chain)
+- The launching instances themselves never call KMS directly
+
+**Why the grant is on the ASG SLR (not the EC2 instance)**:
+- The instance doesn't exist yet when the grant is needed (chicken-and-egg)
+- ASG is the entity orchestrating the launch
+- EBS encryption is hypervisor-level — instance never touches KMS even after launch
 
 ### RDS encryption
 - Must be set **at DB instance creation time** — cannot enable encryption on existing unencrypted RDS
@@ -466,8 +757,76 @@ The grant authorizes the service-linked role specifically to use the key during 
 - Configure bucket default encryption with a CMK
 - S3 calls `GenerateDataKey` + `Decrypt` on your behalf
 - Each object gets a unique DEK (automatically — you don't manage this)
-- **Bucket Key** feature reduces KMS calls by ~99% via cached DEKs (cost savings)
 - DSSE-KMS = dual-layer encryption (two layers of envelope encryption for high-security needs)
+
+### S3 Bucket Keys — the cost-optimization feature
+
+**The problem**: standard SSE-KMS makes a KMS API call for EVERY S3 operation. For high-volume buckets:
+- Millions of objects = millions of KMS API calls
+- Cost: ~$0.03 per 10,000 KMS calls
+- Latency: ~10-50ms added per S3 operation
+- KMS rate limits: ~5,500-30,000 requests/sec by operation — heavy workloads hit throttling
+
+**The solution**: S3 Bucket Keys introduces an INTERMEDIATE cached key between the CMK and per-object DEKs:
+
+```
+WITHOUT Bucket Keys              WITH Bucket Keys
+─────────────────────            ────────────────
+
+CMK                              CMK
+ ↓ GenerateDataKey               ↓ GenerateDataKey (once per cache window)
+ ↓ per object                    ↓
+DEK 1, DEK 2, DEK 3...           Bucket Key (cached by S3)
+                                  ↓ derives locally (no KMS call)
+                                  ↓
+                                 DEK 1, DEK 2, DEK 3...
+```
+
+S3 generates a bucket-level key once per cache window (a few minutes). Per-object DEKs are derived from it WITHOUT calling KMS for each object. **Result: ~99% reduction in KMS API calls.**
+
+**Security properties preserved**:
+- Each object still gets a unique DEK
+- CMK is still the root of trust (bucket key is wrapped under your CMK)
+- Bucket key is short-lived (rotated automatically)
+- Plaintext bucket key only exists in S3 service memory during cache period
+
+**How to enable** (at bucket level, recommended):
+```bash
+aws s3api put-bucket-encryption --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules": [{
+      "ApplyServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "aws:kms",
+        "KMSMasterKeyID": "arn:aws:kms:..."
+      },
+      "BucketKeyEnabled": true
+    }]
+  }'
+```
+
+Free to enable. No extra cost. AWS recommends enabling for all SSE-KMS buckets.
+
+**Caveats to know**:
+
+1. **CloudTrail audit changes**: instead of one KMS event per object, you'll see one event per bucket key generation (every few minutes). The event has the BUCKET ARN as encryption context, not the object ARN. If compliance requires per-object KMS audit, use S3 data events instead (or disable Bucket Keys).
+
+2. **Encryption context changes**: with Bucket Keys, S3 uses BUCKET ARN (not object ARN) as encryption context. If your IAM/KMS policies condition on `kms:EncryptionContext:aws:s3:arn` matching the object ARN, those policies break. Migrate to use bucket ARN instead.
+
+3. **Compatibility**:
+   - Works only with SSE-KMS (not SSE-S3 or SSE-C — neither needs it)
+   - NOT compatible with DSSE-KMS (dual-layer requires two distinct KMS calls per object by design)
+   - Existing objects keep their original encryption (only NEW objects use the bucket key)
+   - Works with S3 Replication (replication respects destination bucket's Bucket Key setting)
+
+**Exam pattern recognition**:
+
+| Question phrasing | Right answer |
+|---|---|
+| "Reduce SSE-KMS costs for high-volume bucket" | S3 Bucket Keys |
+| "Avoid KMS API throttling on heavy S3 workload" | S3 Bucket Keys |
+| "Reduce latency for SSE-KMS S3 operations" | S3 Bucket Keys |
+| "Per-object KMS audit log required" | Disable Bucket Keys OR use S3 data events |
+| "Highest encryption security, no cost concern" | DSSE-KMS (not Bucket Keys; not compatible) |
 
 ### Lambda environment variables
 - Encrypted at rest using KMS by default (`aws/lambda`)
@@ -642,7 +1001,13 @@ The grant authorizes the service-linked role specifically to use the key during 
 7. What's the construction-error sign on `kms:GetDataKey`? ✏️
 8. For cross-account encrypted snapshot sharing, what KMS key type is required? ✏️
 9. Can you convert a single-Region key to a multi-Region key? ✏️
-10. If root user is locked out of a KMS key, who can recover access? ✏️
+10. If you accidentally remove the root statement from a key policy and lock yourself out (key still exists, just unreachable), who can restore access? ✏️
+11. Is the JSON `{Action: "kms:CreateGrant", Condition: "GrantIsForAWSResource: true"}` itself the grant, or a permission to create grants? ✏️
+12. Can you use `autoscaling.amazonaws.com` as a KMS grant's GranteePrincipal? Why or why not? ✏️
+13. When EC2 launches an instance with encrypted EBS, does the EC2 INSTANCE itself need KMS permissions? ✏️
+14. What S3 feature reduces SSE-KMS API calls by ~99%? ✏️
+15. During S3 CRR with SSE-KMS, is the data plaintext on the wire between regions? ✏️
+16. If your application on EC2 needs to call `kms:GenerateDataKey` to encrypt app data, where do the permissions go? ✏️
 
 **Answers** (verify against memory):
 1. `kms:GenerateDataKey` + `kms:Decrypt`
@@ -654,9 +1019,15 @@ The grant authorizes the service-linked role specifically to use the key during 
 7. It doesn't exist — the action is `GenerateDataKey`, never `GetDataKey`
 8. Customer-managed CMK (default `aws/*` keys cannot be shared cross-account)
 9. NO — single-Region keys cannot be converted; create a new multi-Region key
-10. Only AWS Support, and even then it depends on if you removed the root statement (sometimes unrecoverable)
+10. **AWS Support can restore access** via internal tooling for lockout scenarios. The key was never deleted — just unreachable due to policy misconfiguration. (Distinguish from key DELETION which is irreversible.)
+11. It's a **permission to create grants**, NOT a grant itself. The actual grant is created dynamically at runtime by AWS services when they need key access (e.g., EC2 service calls CreateGrant on user's behalf during encrypted EBS launch).
+12. **NO** — `autoscaling.amazonaws.com` is a SERVICE PRINCIPAL (a string), not an IAM ARN. KMS grants require IAM principal ARNs. The correct grantee is the SLR ARN: `arn:aws:iam::ACCT:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling`.
+13. **NO** — EBS encryption is handled at the hypervisor layer, transparent to the instance. The EC2 SERVICE needs KMS access during launch (via grant). The instance OS never touches KMS for EBS operations.
+14. **S3 Bucket Keys** — introduces an intermediate cached bucket key between CMK and per-object DEKs. Reduces KMS API calls by ~99%. Free to enable.
+15. **No (network layer).** AWS encrypts inter-region traffic on its backbone automatically (physical + TLS layers). The customer's KMS envelope IS removed and reapplied during CRR (server-side, in S3 service memory), but the data is never on plaintext wire. For zero AWS plaintext exposure, use client-side encryption.
+16. **Instance profile role**, via IAM policy + key policy (NOT a grant). Grants are for transient, service-initiated operations. Persistent app workloads use the standard IAM + key policy combo.
 
-If you got 10/10, KMS is locked. If you got 8-9/10, drill the ones you missed. If you got <8, re-read the relevant section above.
+If you got 14-16/16, KMS is locked. If you got 11-13/16, drill the ones you missed. If you got <11, re-read the relevant section above.
 
 ---
 
