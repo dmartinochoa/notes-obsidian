@@ -1884,4 +1884,726 @@ This rejects metadata requests from the apache user only.
 
 *Updated June 4, 2026 — added Tier 6 section with full remediation notes for Mock #1 (28 misses). KMS-related misses cross-reference `kms-deep-dive.md`. WAF/DDoS deep dive coming June 5.*
 
-*Last updated: June 4, 2026*
+---
+
+## ⚠️ Tier 7 — June 5 TD D3 practice misses + ACM cert mastery
+
+Tutorials Dojo D3 practice set (June 5 evening, 15 questions). Score: 10/15 = 67% (up from Mock #1 D3 41%).
+
+The 5 misses surface recurring patterns that go beyond the specific questions — these mental models apply across multiple exam topics.
+
+### Pattern A — Detection ≠ Auto-Remediation (TD Q14)
+
+**The miss**: Picked "AWS Config `access-keys-rotated` managed rule" for auto-disabling IAM access keys >90 days old.
+
+**Why wrong**: AWS Config is a DETECTION/COMPLIANCE service. It marks resources non-compliant but does NOT auto-fix.
+
+**Right answer**: Custom Lambda function:
+1. `GenerateCredentialReport` API (trigger report)
+2. `GetCredentialReport` API (download CSV)
+3. Parse `access_key_X_last_rotated` column for keys >90 days
+4. `UpdateAccessKey` with `Status=Inactive`
+5. Schedule via EventBridge cron rule
+
+**The rule reflex** (memorize):
+
+| Question phrasing | Right mechanism |
+|---|---|
+| "Detect non-compliant resources" | AWS Config (rule generates findings) |
+| "Audit compliance posture" | Config + Security Hub aggregation |
+| "**Automatically fix** / auto-remediate / auto-disable" | Config + **SSM Automation document** (if exists) OR **custom Lambda** |
+| "Automate IAM access key disable" | Custom Lambda (no built-in SSM document for this) |
+
+**Config + SSM auto-remediation exists for some rules**, e.g.:
+- `AWS-DisableS3BucketPublicReadWrite`
+- `AWS-EnableCloudTrail`
+- `AWS-RemoveS3BucketPolicyStatement`
+
+But NOT for IAM access key disable. Always custom Lambda for that scenario.
+
+**Construction errors**:
+- ❌ "CloudWatch Alarm on access key age" — not a CW metric
+- ❌ "IAM dashboard manual check" — not automated
+- ❌ "Config auto-disables via built-in Lambda" — Config detects only
+
+---
+
+### Pattern B — ACM cert regions (the complete master reference)
+
+This pattern has been bitten multiple times. Master the FULL table once.
+
+#### The two foundational rules
+
+1. **CloudFront viewer cert → us-east-1 ALWAYS** (regardless of where anything else lives)
+2. **Origin cert → origin's region** (ALB cert in ALB's region, API GW cert in API GW's region)
+
+#### Complete cert region table by service
+
+| Service / scenario | Cert region |
+|---|---|
+| **CloudFront viewer (client ↔ CF)** | **us-east-1 ALWAYS** |
+| **CloudFront → ALB origin** | ALB's region |
+| **CloudFront → API GW regional origin** | API GW's region |
+| **API Gateway edge-optimized** | **us-east-1** (uses AWS-managed CF underneath) |
+| **API Gateway regional** | API GW's region |
+| **API Gateway private** | N/A (VPC, internal PKI) |
+| **ALB / NLB / GWLB** | Load balancer's region |
+| **App Runner** | Service's region |
+| **AppSync** | Service's region |
+| **Elastic Beanstalk** | Region |
+| **Verified Access** | Region |
+| **Cognito User Pool custom domain** | us-east-1 (uses CF) |
+| **WorkSpaces** | Region |
+| **Elastic Transcoder** | N/A |
+
+#### The recall trick
+
+**"Edge gets East"** — anything edge-optimized or CloudFront viewer-facing → us-east-1
+**"Regional gets local"** — anything regional gets a cert in its own region
+
+#### Compound architecture: Regional API GW behind your own CloudFront (Q17 / Q27 pattern)
+
+This is the DDoS-resilient pattern. Requires TWO certs:
+
+```
+Client ──HTTPS──→ Your CloudFront ──HTTPS──→ Regional API GW
+            cert #1: us-east-1         cert #2: API GW's region
+```
+
+Both certs can be for the SAME custom domain. Just requested in different regions.
+
+#### Why use Regional API GW + own CloudFront vs Edge-optimized
+
+| Option | When to use |
+|---|---|
+| **Edge-optimized API GW** | Simple, AWS handles edge CF, but **you can't attach YOUR WAF**, can't customize cache, can't add Shield Advanced features |
+| **Regional API GW + your own CloudFront** | Full WAF control, Shield Advanced integration, cache customization, DDoS resilience |
+
+For DDoS protection or WAF: **always Regional + own CloudFront**.
+
+#### Custom domain vs default endpoint
+
+- **Default endpoint** (`abc123.execute-api.us-west-2.amazonaws.com`) — uses AWS-managed cert, no ACM needed
+- **Custom domain** (`api.mycompany.com`) — requires ACM cert in the right region
+
+#### mTLS at API Gateway
+
+If question mentions mutual TLS / client cert auth:
+- **Only Regional API GW supports mTLS** (edge-optimized doesn't)
+- Requires S3 truststore with PEM-encoded CA certs
+- Plus ACM cert in API GW's region for server side
+
+#### Construction errors to recognize
+
+- ❌ "CloudFront cert in us-west-1" → must be us-east-1
+- ❌ "Edge-optimized API GW custom domain cert in API GW's region" → must be us-east-1
+- ❌ "Regional API GW custom domain cert in us-east-1" → must be API GW's region (unless you want it specifically)
+- ❌ "Edge-optimized API GW with mTLS" → not supported
+- ❌ "Edge-optimized API GW with attached WAF for DDoS" → can't attach WAF to AWS-managed CF
+
+---
+
+### Pattern C — Packet inspection vs metadata logging (TD Q9)
+
+**The miss**: Picked VPC Flow Logs for "inspect IP packet data."
+
+**Why wrong**: Flow Logs capture METADATA ONLY (src/dst/port/protocol/bytes). No packet contents.
+
+**The full inspection capability table**:
+
+| Service / mechanism | What it captures |
+|---|---|
+| **VPC Flow Logs** | METADATA ONLY (src IP, dst IP, ports, protocol, byte count, accept/reject) |
+| **VPC Traffic Mirroring** | **FULL PACKET CONTENTS** (headers + payload, the actual bytes) |
+| **Host-based IDS/IPS agent on EC2** | Full content AT the instance OS level |
+| **Proxy software** intercepting outbound traffic | Application-layer content (including decrypted TLS at proxy) |
+| **ALB access logs** | HTTP request metadata (URL, status, latency) — NOT packet contents |
+| **CloudWatch Logs agent** | System/app log files — NOT network |
+| **CloudTrail** | API calls — NOT network |
+| **Network Firewall (with TLS inspection)** | Inline L3/L4/L7 inspection with optional TLS decrypt |
+
+**Discriminator reflexes**:
+
+| Question phrase | Right tool |
+|---|---|
+| "Inspect packet data" / "deep packet inspection" / "content" | Traffic Mirroring / host agent / proxy / Network Firewall |
+| "Network flow visibility" / "connection metadata" | VPC Flow Logs |
+| "Detect data exfiltration" | Traffic Mirroring → IDS appliance OR host agent |
+| "Forensic packet capture" | Traffic Mirroring → S3 |
+| "Detect SSL/TLS-encrypted attacks" | Host agent on instance OR Network Firewall TLS inspection |
+| "Audit API actions" | CloudTrail |
+
+**Construction errors**:
+- ❌ "Flow Logs for packet data inspection" — metadata only
+- ❌ "CloudWatch Logs agent for network packet inspection" — system logs, not network
+- ❌ "ALB access logs for malware detection" — HTTP metadata only
+- ❌ "CloudTrail for network traffic analysis" — API calls only
+
+---
+
+### Pattern D — CloudWatch Logs agent troubleshooting (TD Q6 — recurring pattern)
+
+This appeared in Mock #1 (Q13) too. Lock the diagnostic checklist.
+
+**Diagnostic checklist** (verify in order, most common first):
+
+1. **IAM role on instance profile has**:
+   - `logs:CreateLogGroup`
+   - `logs:CreateLogStream`
+   - `logs:PutLogEvents`
+   - `logs:DescribeLogStreams`
+2. **awslogs / CloudWatch agent service is RUNNING**
+   - Verify via SSM Run Command: `systemctl status amazon-cloudwatch-agent`
+   - Scales to many instances without SSH
+3. **Network connectivity to CloudWatch Logs endpoint**
+   - Public: NAT + internet route
+   - Private: Interface VPC endpoint for `logs`
+4. **Log file paths in agent config exist and are readable**
+   - Check `/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json`
+   - run_as_user must have file read permissions
+5. **Region in agent config matches target log group region**
+6. **AMI ordering** — AMI created BEFORE agent install
+   - If agent installed THEN AMI created, instance metadata becomes stale on new instances
+   - Best practice: install agent at LAUNCH (UserData / SSM / CFN), not bake into AMI
+
+**Construction errors / distractors**:
+- ❌ X-Ray for tracing CW Logs agent (X-Ray is for app request flow)
+- ❌ Detailed Monitoring (just metric frequency 5min→1min, not logs)
+- ❌ `/var/cloudwatch/rejects.log` (fictional file, doesn't exist)
+- ❌ "Manually create log group first" (agent auto-creates with permissions)
+- ❌ "Run as root only" (run_as_user can be any user with file perms)
+
+**The SSM Run Command angle**: when question says "many EC2 instances need diagnosis" → SSM Run Command is the scalable answer (vs SSHing into each).
+
+---
+
+### Pattern E — Edge security architecture (TD Q15)
+
+**The miss**: Picked NAT Gateway / geo-restriction / Direct Connect for hardening a public-facing multi-tier app.
+
+**Why wrong**:
+- NAT Gateway = OUTBOUND only, doesn't help inbound security
+- Geo-restriction = filters geography, not attack types
+- Direct Connect = private connectivity for known partners, not internet-facing security
+
+**The right architecture: minimum-exposure pattern**
+
+```
+Internet
+   ↓
+Route 53 (DNS, Shield auto)
+   ↓
+CloudFront distribution (WAF web ACL)
+   ↓
+ALB (public-facing — the ONLY public entry point)
+   ↓ (private subnets behind here)
+Web servers (PRIVATE subnet, no public IPs)
+   ↓
+App servers (PRIVATE subnet)
+   ↓
+RDS (PRIVATE subnet)
+```
+
+**The two changes** to harden "public-facing multi-tier":
+1. **Move backends to PRIVATE subnets, remove public IPs/EIPs** — backends no longer directly internet-reachable
+2. **CloudFront + WAF in front of ALB** — edge protection at global scale + regional WAF on ALB for defense in depth
+
+**Subnet placement rules**:
+
+| Component | Subnet type |
+|---|---|
+| ALB (public) | Public subnet |
+| NAT Gateway | Public subnet |
+| Internet Gateway | Attached to VPC (no subnet) |
+| Web servers | PRIVATE subnet |
+| App servers | PRIVATE subnet |
+| Databases (RDS, ElastiCache, etc.) | PRIVATE subnet |
+| Lambda functions | VPC-attached to PRIVATE subnet (if VPC needed) |
+| Bastion / Jump host | Public subnet (with very narrow SG) |
+
+**Construction errors**:
+- ❌ NAT Gateway for inbound security (outbound only)
+- ❌ Geo-restriction as primary defense (wrong tool for general attacks)
+- ❌ Direct Connect for public app security (private connectivity service)
+- ❌ "Web servers need public IPs to receive traffic from internet" — false, ALB forwards
+- ❌ Security group "deny" rules (SGs are allow-only; use NACL for deny if needed)
+
+---
+
+### Cross-cutting reflex: the "what does this service actually DO?" check
+
+For every AWS service in an exam option, ask 5 questions:
+
+| # | Question | Discriminator example |
+|---|---|---|
+| 1 | **Is it DETECTION or PREVENTION?** | Config detects; Lambda remediates |
+| 2 | **What LAYER does it operate at?** | Flow Logs = metadata; Traffic Mirroring = packets |
+| 3 | **What's its ATTACHMENT POINT?** | WAF on CloudFront/ALB only, not EC2 |
+| 4 | **What's its REGIONAL CONSTRAINT?** | CloudFront cert = us-east-1; ALB cert = origin region |
+| 5 | **What's its DEFAULT BEHAVIOR?** | CW Logs agent needs IAM + service running |
+
+If you can answer these 5 about each service in the options, you eliminate most wrong answers in <30 seconds.
+
+---
+
+### Summary patches for Mock #2 prep
+
+| Pattern | One-line reflex |
+|---|---|
+| A | Config detects, Lambda remediates (no built-in SSM doc for access key disable) |
+| B | CloudFront viewer cert = us-east-1 ALWAYS; origin cert = origin region; Edge-opt API GW = us-east-1 |
+| C | Flow Logs = metadata only; Traffic Mirroring / host agent / proxy = packet content |
+| D | CW Logs agent: IAM perms (4 actions) + service running (verify via SSM Run Command) + network connectivity |
+| E | Public-facing app hardening = move backends to private subnets behind ALB; CloudFront + WAF for edge |
+
+---
+
+*Updated June 6, 2026 — added Tier 7 with TD D3 practice misses + complete ACM cert region master table + 5 cross-cutting patterns for Mock #2 prep.*
+
+---
+
+## ⚠️ Tier 8 — TD D4 IAM practice misses (June 6 afternoon)
+
+D4 IAM practice on TD: 9/15 = 60% (regression from Mock #1 73%). Diagnosis: AD/Federation cluster is the weak spot (3 of 6 misses). Patches below.
+
+### Pattern F — AD trust direction semantics (TD Q5)
+
+**THE RULE that trips people up:**
+
+> In an Active Directory one-way trust where **"X trusts Y"**: users in **Y can access X's resources**. The DIRECTION of trust determines who can access what.
+
+Think of it as: "X trusts Y" = "X says I trust Y's users" = "Y's users can come INTO X"
+
+### The Q5 scenario decoded
+
+Requirement: "Cloud-based users must be PREVENTED from accessing on-premises systems."
+
+| Trust setup | What happens | Satisfies "cloud users can't access on-prem"? |
+|---|---|---|
+| **AWS AD trusts on-prem AD** | On-prem users → can access AWS<br>AWS users → CANNOT access on-prem | ✅ YES — this is the answer |
+| On-prem AD trusts AWS AD | AWS users → can access on-prem<br>On-prem users → CANNOT access AWS | ❌ NO — violates requirement |
+| Two-way trust | Both directions work | ❌ NO — allows cloud users into on-prem |
+
+### Memorization aid (the one-line rule)
+
+```
+"X trusts Y" = "Y's users access X"
+
+The trusting side is the RESOURCE owner.
+The trusted side is the IDENTITY provider.
+
+For "AWS users CANNOT access on-prem":
+  → On-prem must NOT trust AWS
+  → AWS must trust on-prem (one-way, AWS = trusting side)
+```
+
+### Pattern G — Federation uses ROLES, NOT GROUPS (TD Q13)
+
+**THE RULE**:
+- Federated users from on-prem AD (via SAML/ADFS) get **temporary STS credentials by ASSUMING an IAM role**
+- IAM groups are containers for IAM users; they DO NOT generate temporary credentials
+- The mapping is: AD group/claim → **IAM role** (not IAM group)
+
+### The federation architecture (memorize)
+
+```
+On-prem AD user logs in
+   ↓
+ADFS (Active Directory Federation Services) authenticates
+   ↓
+ADFS generates a SAML assertion containing AD group/claim
+   ↓
+User submits SAML to AWS STS via AssumeRoleWithSAML API
+   ↓
+STS returns temporary AWS credentials (based on the IAM ROLE the SAML maps to)
+   ↓
+User makes AWS API calls with those temporary credentials
+```
+
+### Required components for on-prem AD → AWS federation
+
+| Component | Purpose |
+|---|---|
+| **IAM SAML 2.0 Identity Provider** | Tells AWS to trust the IdP (your ADFS) |
+| **IAM Roles** (one per AD group/permission set) | What federated users assume |
+| **AssumeRoleWithSAML** STS API | Returns temporary credentials |
+| **ADFS Relying Party Trust** for AWS | On the ADFS side, says "trust AWS as a relying party" |
+
+**Construction error to recognize**:
+- ❌ "IAM groups for federation" — groups can't be assumed by STS
+- ❌ "Cognito Identity Pool for on-prem AD" — Cognito Identity Pool is for AWS service access from mobile/web apps, not enterprise federation
+- ❌ "Cognito User Pool to authenticate AD users" — User Pool is for app users, not enterprise SSO
+- ❌ "AWS RAM for AD federation" — RAM shares AWS resources, not for identity federation
+
+### Pattern H — AWS Directory Service identification (TD Q14)
+
+For "connect on-prem Microsoft AD with AWS" → **AWS Directory Service** (specifically **AWS Managed Microsoft AD**).
+
+**Quick recall map**:
+
+| Need | Right service |
+|---|---|
+| Run Microsoft AD in AWS that supports trusts to on-prem AD | AWS Directory Service for Microsoft AD (Enterprise Edition) |
+| Proxy existing on-prem AD to AWS (no AD in AWS) | AD Connector |
+| Small standalone Samba 4-compatible directory | Simple AD |
+| Mobile/web app authentication | Cognito User Pool |
+| Mobile/web app authorization to AWS resources | Cognito Identity Pool |
+| Workforce SSO across AWS accounts | IAM Identity Center (formerly AWS SSO) |
+| Hierarchical data store for app developers | Amazon Cloud Directory (NOT for AD use cases) |
+
+**The exam trap**: Cloud Directory and Cognito Identity Pool both contain "directory" or "identity" but are NOT for AD integration. AWS Directory Service is the one.
+
+### AD service comparison table (memorize cold)
+
+| Service | Use case | Trust to on-prem AD? |
+|---|---|---|
+| **AWS Managed Microsoft AD** | Full AD in AWS, AD-aware apps | ✅ Yes (1-way or 2-way) |
+| **AD Connector** | Proxy to on-prem AD (no AD stored in AWS) | ❌ N/A (it IS the bridge) |
+| **Simple AD** | Small dirs, basic LDAP/Samba 4 | ❌ No trust support |
+| **Cognito User Pool** | App user authentication (JWT tokens) | ❌ Different service |
+| **Cognito Identity Pool** | App user → AWS credentials | ❌ Different service |
+| **IAM Identity Center** | Workforce SSO across AWS accounts | ✅ Via Managed AD or external IdP |
+
+---
+
+### Pattern I — GuardDuty depth: EKS Protection + Runtime Monitoring (TD Q6)
+
+For Kubernetes audit logs AND runtime signals → **BOTH features required**:
+
+| GuardDuty feature | What it sees |
+|---|---|
+| **EKS Protection** | Kubernetes API audit logs (privilege escalation, anomalous K8s API calls) |
+| **Runtime Monitoring** (formerly EKS Runtime Monitoring) | OS activity, network behavior, file access ON CLUSTER NODES |
+
+**The trap**: questions split these into two options and you have to recognize BOTH are needed for "audit logs AND runtime signals."
+
+GuardDuty feature naming (memorize):
+- **GuardDuty foundational** — VPC Flow Logs, CloudTrail mgmt events, DNS
+- **EKS Protection** — Kubernetes audit logs
+- **Runtime Monitoring** — EKS + ECS + EC2 (process-level via agent)
+- **Malware Protection (EBS scan)** — snapshot-based malware detection
+- **S3 Protection** — CloudTrail S3 data events
+- **RDS Protection** — RDS login anomaly detection
+- **Lambda Protection** — Lambda network anomaly
+
+**Exam pattern**: "Kubernetes threats" alone → EKS Protection. "Kubernetes threats AND runtime signals" → EKS Protection + Runtime Monitoring.
+
+---
+
+### Pattern J — "Least permissive" trap: single action > managed policy (TD Q7)
+
+**THE RULE**: When question says **"LEAST permissive"** or **"least privilege"** for IAM:
+- **Single API action** wins (e.g., `cloudwatch:PutMetricData`)
+- **AWS-managed policies** ALMOST ALWAYS lose (they're broad-scoped)
+
+### CloudWatch managed policies vs single action
+
+| Policy | Permissions |
+|---|---|
+| `CloudWatchFullAccess` | Full read + write on CloudWatch + EC2 metadata | ❌ Way over-permissive |
+| `CloudWatchReadOnlyAccess` | Read-only CloudWatch | ❌ No write, breaks scenario |
+| `CloudWatchActionsEC2Access` | Read CW + EC2 metadata + Stop/Terminate/Reboot EC2 | ❌ Includes destructive EC2 actions |
+| **`cloudwatch:PutMetricData` only** | Just publish metrics | ✅ Least privilege for "publish custom metrics" |
+
+### The least-privilege heuristic
+
+When matching to "LEAST permissive":
+1. Look for SINGLE API action options
+2. Eliminate managed policies (`*FullAccess`, `*Access`, etc.) unless they're scoped to exactly the action
+3. Check for tangential permissions (e.g., `CloudWatchActionsEC2Access` sneakily includes EC2 destructive actions)
+4. If multiple single-action options exist, pick the most specific one to the use case
+
+---
+
+### Pattern K — IoT Core policy with Thing.ThingName (TD Q15)
+
+For preventing client ID injection attacks on AWS IoT Core:
+
+**Right pattern** (validates against IoT registry):
+```json
+{
+  "Effect": "Allow",
+  "Action": "iot:Connect",
+  "Resource": "arn:aws:iot:region:account:client/${iot:Connection.Thing.ThingName}"
+}
+```
+
+**Wrong pattern** (vulnerable to special char injection):
+```json
+{
+  "Effect": "Allow",
+  "Action": "iot:Connect",
+  "Resource": "arn:aws:iot:region:account:client/${iot:ClientId}"
+}
+```
+
+### Why this matters
+
+- `iot:ClientId` = whatever the device claims its ID is (attacker-controllable)
+- `iot:Connection.Thing.ThingName` = name registered in AWS IoT registry (verified during connection)
+- Using `ClientId` allows special chars / injection
+- Using `ThingName` forces match against the IoT registry → injection impossible
+
+### Plus: AWS IoT Device Defender for fleet security
+
+For ongoing IoT fleet security:
+- Audit configurations
+- Detect anomalies
+- Mitigate device threats
+- Recommended companion to scoped IoT Core policies
+
+---
+
+### Cross-cutting reflex updates for D4 IAM
+
+Adding to the existing 5-question check (Tier 7):
+
+| # | Question | New discriminator |
+|---|---|---|
+| 6 | **"Is this AD/federation?"** | If yes: IAM roles + AssumeRoleWithSAML + ADFS relying party trust + Directory Service |
+| 7 | **"What's the trust direction?"** | "X trusts Y" = Y's users access X |
+| 8 | **"Is this 'LEAST permissive'?"** | Single API action > managed policy |
+| 9 | **"Do I need BOTH features?"** | GuardDuty audit logs (EKS Protection) + runtime (Runtime Monitoring) |
+| 10 | **"Is the policy resource attacker-controllable?"** | Use registered identifiers (Thing.ThingName, not ClientId) |
+
+---
+
+### Summary patches for Mock #2 (D4 cluster)
+
+| Pattern | One-line reflex |
+|---|---|
+| F | AD one-way trust direction: "X trusts Y" = Y's users access X (so AWS trusts on-prem = on-prem users access AWS, AWS users blocked from on-prem) |
+| G | Federation uses IAM ROLES (not groups) + AssumeRoleWithSAML + ADFS relying party trust |
+| H | Connecting on-prem AD to AWS = AWS Directory Service (Managed Microsoft AD with trust) |
+| I | GuardDuty for K8s audit + runtime = EKS Protection + Runtime Monitoring (BOTH) |
+| J | "LEAST permissive" = single API action > managed policy |
+| K | IoT Core policy resource = `client/${iot:Connection.Thing.ThingName}` (NOT `iot:ClientId`) |
+
+---
+
+*Updated June 6, 2026 (afternoon) — added Tier 8 with TD D4 IAM misses, focus on AD/Federation cluster (3 misses), GuardDuty EKS depth, least-privilege managed-policy trap, IoT Core policy attacker-controllable resources.*
+
+---
+
+## ⚠️ Tier 9 — TD D1 + D2 practice (June 6 evening)
+
+D1 Detection: **15/15 = 100%** (no misses — domain locked)
+D2 Incident Response: **11/15 = 73%** (massive jump from Mock #1's 20%)
+
+The 4 D2 misses cluster on a single high-value distinction (Route 53 logging types) plus 2 service-selection traps. Patches below.
+
+### Pattern L — Route 53 Query Logging types (TD Q3 + Q13 — bit me TWICE)
+
+This is THE recurring trap in D1/D2 questions. Lock the distinction cold.
+
+#### Two completely different services with similar names
+
+| Service | Logs WHAT | Destinations |
+|---|---|---|
+| **Route 53 DNS Query Logging** | **PUBLIC** DNS queries TO your hosted zones (queries FROM the internet TO your domain) | **CloudWatch Logs ONLY** |
+| **Route 53 Resolver Query Logging** | **VPC-INTERNAL** DNS queries FROM resources INSIDE your VPC (EC2/Lambda/etc.) | CloudWatch Logs, S3, Kinesis Firehose |
+
+#### The discriminator (memorize this exact phrasing)
+
+| Question phrase | Right answer |
+|---|---|
+| "Log queries TO my public domain / hosted zone" | **DNS Query Logging** (CW Logs only) |
+| "Public DNS queries" + "for my domain" | **DNS Query Logging** (CW Logs only) |
+| "Log DNS queries FROM resources in my VPC" | **Resolver Query Logging** |
+| "VPC instances making DNS queries" | **Resolver Query Logging** |
+| "Track DNS queries from EC2/Lambda" | **Resolver Query Logging** |
+| "Detect DNS exfiltration from VPC" | **Resolver Query Logging** (+ optional DNS Firewall) |
+
+#### Memorization mnemonic
+
+**"DNS = your DOMAIN getting queried (public)"**
+**"Resolver = your RESOURCES doing the querying (internal)"**
+
+#### Construction errors
+
+- ❌ "Route 53 DNS query logs to S3" — DNS query logs go ONLY to CloudWatch Logs
+- ❌ "Route 53 DNS query logs to Firehose" — same
+- ❌ "Route 53 Resolver query logging for public hosted zone queries" — wrong scope
+
+### Pattern M — CloudWatch Contributor Insights for "top N" / "frequently occurring"
+
+When the question asks for "MOST FREQUENTLY OCCURRING," "TOP CONTRIBUTORS," "top talkers," "top-N" patterns:
+
+**Right answer**: **CloudWatch Contributor Insights**
+
+#### Analytical tool selection
+
+| Need | Right tool |
+|---|---|
+| "Top N frequently occurring" / "top contributors" | **CloudWatch Contributor Insights** |
+| Ad-hoc SQL queries on S3-stored logs | **Athena** |
+| Query language for CW Logs (interactive) | **CW Logs Insights** |
+| Time-series metric visualization | CloudWatch dashboards |
+| Aggregated security findings dashboard | Security Hub |
+
+#### Why Contributor Insights wins over Athena for "top N"
+
+- Contributor Insights is purpose-built for ranking — extracts the top contributors automatically
+- Athena requires writing SQL + processing results — more steps
+- Contributor Insights works directly on CW Logs — no S3 export step
+
+**Exam reflex**: "frequently occurring" + "DNS queries" → Resolver Query Logging → **Contributor Insights**
+
+### Pattern N — Amazon Detective is the INVESTIGATION tool (TD Q14)
+
+When the question says **"investigate a GuardDuty finding"** or **"determine the scope of the compromise"** or **"analyze suspicious activity"** → **Amazon Detective**.
+
+#### Detection vs Investigation vs Aggregation (memorize the categories)
+
+| Service | Category | When to pick |
+|---|---|---|
+| **GuardDuty** | DETECTION | "Detect threats from logs" |
+| **Inspector** | DETECTION (vulnerabilities) | "Find CVEs in EC2/Lambda/ECR" |
+| **Macie** | DETECTION (sensitive data) | "Find PII in S3" |
+| **Config** | DETECTION (config compliance) | "Audit resource configurations" |
+| **Detective** | **INVESTIGATION** | "Investigate finding scope," "analyze attack pattern" |
+| **Security Hub** | AGGREGATION | "Central security dashboard," "CIS Benchmarks" |
+| **CloudTrail** | LOGGING | "Audit API calls" |
+
+#### Detective's unique capability
+
+Detective is the ONLY service that does **graph-based behavioral investigation**:
+- Pivots directly from a GuardDuty finding
+- Auto-correlates VPC Flow Logs + CloudTrail + EKS audit + GuardDuty data
+- Visualizes connections between entities (IPs, users, roles, resources)
+- Determines scope and timeline of suspicious activity
+- Cannot generate findings itself — it's a pivot tool
+
+**Prerequisite**: GuardDuty must be enabled for at least 48 hours before Detective can be enabled in the same account.
+
+#### Exam pattern recognition
+
+| Question phrase | Right answer |
+|---|---|
+| "Investigate the scope of a GuardDuty finding" | Detective |
+| "Determine if a flagged instance is compromised" | Detective |
+| "Analyze attack patterns / timeline" | Detective |
+| "Visualize relationships between AWS entities" | Detective |
+| "Generate findings about compromised instances" | GuardDuty (not Detective — Detective doesn't generate) |
+| "Centralize findings from multiple services" | Security Hub (not Detective) |
+| "Scan for vulnerabilities" | Inspector (not Detective) |
+
+### Pattern O — GuardDuty specific finding names
+
+The exam occasionally tests specific finding name recognition. You don't need to memorize all of them — recognize the structure.
+
+#### Finding name structure
+
+```
+Category : Resource / Action [.SubAction]
+```
+
+Examples:
+- `UnauthorizedAccess:IAM/InstanceCredentialExfiltration.InsideAWS`
+- `UnauthorizedAccess:IAM/InstanceCredentialExfiltration.OutsideAWS`
+- `UnauthorizedAccess:EC2/TorClient`
+- `CryptoCurrency:EC2/BitcoinTool.B!DNS`
+- `Execution:EC2/MaliciousFile`
+- `Recon:EC2/PortProbeUnprotectedPort`
+
+#### Key finding categories to recognize
+
+| Category | What it indicates |
+|---|---|
+| **UnauthorizedAccess** | Suspicious access to AWS resources (credential exfiltration, anonymous access, etc.) |
+| **CryptoCurrency** | Crypto mining activity (Bitcoin/Monero) |
+| **Backdoor** | Indicator of compromise (C2 communication) |
+| **Execution** | Malware execution on instance |
+| **Recon** | Reconnaissance/scanning activity |
+| **Trojan** | Trojan/RAT-like activity |
+| **Stealth** | Anti-forensics behavior (disabling logging, etc.) |
+| **Impact** | Active attack (DoS, data destruction) |
+
+#### Key resource types in finding names
+
+- **EC2** — instance-level findings
+- **IAM** — credential/identity findings
+- **S3** — bucket/object findings
+- **EKS/Kubernetes** — Kubernetes findings
+- **Lambda** — Lambda function findings
+- **RDS** — RDS database findings
+- **Runtime** — agent-based runtime monitoring findings
+
+---
+
+### Pattern P — S3 Inventory for compliance audit (Q2 supplementary)
+
+For "audit replication and encryption status of S3 objects" use **S3 Inventory**.
+
+| Need | Right tool |
+|---|---|
+| Audit S3 object encryption status across many objects | **S3 Inventory** (daily/weekly CSV/Parquet reports) |
+| Detect PII in S3 objects | Macie |
+| Real-time S3 access alerts | CloudTrail data events + EventBridge |
+| Investigate S3 access patterns | Detective |
+
+**S3 Inventory output includes**: encryption status, replication status, object size, last modified, storage class, tags. Great for compliance reports.
+
+---
+
+### Cross-cutting reflex updates for D1 + D2
+
+| # | Question | Discriminator |
+|---|---|---|
+| 11 | **"Public DNS or VPC DNS?"** | Public → DNS Query Logging (CW Logs only) / VPC → Resolver Query Logging (3 destinations) |
+| 12 | **"Top N / frequently occurring?"** | CW Contributor Insights (NOT Athena, NOT CW Logs Insights) |
+| 13 | **"Investigate vs Detect vs Aggregate?"** | Detective = investigate, GuardDuty/Inspector/Macie = detect, Security Hub = aggregate |
+| 14 | **"What's the GuardDuty finding category?"** | Read Category:Resource/Action format to confirm relevance |
+| 15 | **"Audit S3 objects' state?"** | S3 Inventory (encryption, replication, etc.) |
+
+---
+
+### Summary patches for Mock #2 (D1 + D2 cluster)
+
+| Pattern | One-line reflex |
+|---|---|
+| L | Route 53 DNS QL = public domain queries → CW Logs only; Resolver QL = VPC queries → CW Logs/S3/Firehose |
+| M | "Top N" / "frequently occurring" → CW Contributor Insights (not Athena) |
+| N | "Investigate finding scope" → Detective (uniquely graph-based investigation) |
+| O | GuardDuty finding names: Category:Resource/Action[.SubAction] (e.g., InstanceCredentialExfiltration.OutsideAWS) |
+| P | "Audit S3 encryption/replication status" → S3 Inventory reports |
+
+---
+
+### Today's domain trajectory (Mock #1 → June 6 TD)
+
+| Domain | Mock #1 | Today | Real-exam projection (with +28% delta) |
+|---|---|---|---|
+| D1 Detection | 73% | **100%** | ~95%+ 🔒 |
+| **D2 IR** | **20%** (5q sample) | **73%** | ~85%+ ⬆️🚀 |
+| D3 Infrastructure | 41% | 67% | ~75-80% |
+| D4 IAM | 73% | 60% | ~75% (assuming Tier 8 AD/Fed patch lands) |
+| D5 Data Protection | 47% | **93%** | ~95%+ 🔒 |
+| D6 Governance | 83% | 87.5% | ~90%+ 🔒 |
+
+**Weighted overall projection**: ~83-87% real exam. Comfortably above 75% pass line.
+
+### Mock #2 protocol reminders (for tomorrow)
+
+1. **USE THE FULL 210 MINUTES** — D2 test today was 18 min (1:14/q), way too fast. Slow down.
+2. **Pace checks at Q22 (~75 min) and Q44 (~150 min)** — should be on track
+3. **First-pass commit** — flag uncertain, move on, don't ruminate
+4. **Last 30 min** — review ONLY flagged questions
+5. **Don't change first-instinct answers** unless concrete reason
+6. **Read constraint words** — "cannot," "must not," "least," "only," "all"
+7. **Eliminate construction errors first** to speed up obvious wrong answers
+
+### Decision criteria for Mock #2 (locked in, no goalpost moving)
+
+| Raw Mock #2 score | Action |
+|---|---|
+| 80%+ | Stay June 10 — strong confidence |
+| 70–79% | Stay June 10 — on track |
+| 65–69% | Tough call — lean reschedule to June 17 |
+| <65% | Reschedule to June 17 (free until 24h before) |
+
+---
+
+*Updated June 6, 2026 (evening) — added Tier 9 with TD D1 (100%) + D2 IR (73%) patches. Focus: Route 53 DNS vs Resolver query logging distinction (bit twice — lock cold), CW Contributor Insights for top-N, Detective as the investigation pivot tool, GuardDuty finding name structure, S3 Inventory for compliance audits. Trajectory complete for tomorrow's Mock #2 go/no-go.*
+
+*Last updated: June 6, 2026 (evening)*

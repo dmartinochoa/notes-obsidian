@@ -394,12 +394,12 @@ Firewall Manager has TWO toggles per policy:
 
 ### Firewall Manager vs Organizations SCPs
 
-| Concern | Firewall Manager | SCPs |
-|---|---|---|
-| Layer | Application/network protection | API authorization |
-| What it does | Deploys protection policies | Restricts API actions |
-| Inspection? | Manages other services that inspect | No (just blocks API calls) |
-| Common use | "Every account must have WAF" | "Member accounts can't use us-east-1" |
+| Concern      | Firewall Manager                    | SCPs                                  |
+| ------------ | ----------------------------------- | ------------------------------------- |
+| Layer        | Application/network protection      | API authorization                     |
+| What it does | Deploys protection policies         | Restricts API actions                 |
+| Inspection?  | Manages other services that inspect | No (just blocks API calls)            |
+| Common use   | "Every account must have WAF"       | "Member accounts can't use us-east-1" |
 
 ---
 
