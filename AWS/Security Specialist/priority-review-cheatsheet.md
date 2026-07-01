@@ -1406,8 +1406,7 @@ TL;DR: Client-side encryption uses `kms:GenerateDataKey` (envelope pattern), NOT
 3. VPC endpoint policy (if routed through endpoint)
 4. Resource-based policy
 5. IAM identity policy
-6. **Permissions boundary** (per-principal cap)
-7. **Session policy** (per-session cap)
+ 
 
 ---
 
