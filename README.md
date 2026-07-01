@@ -8,7 +8,7 @@ Repo: [dmartinochoa/notes-obsidian](https://github.com/dmartinochoa/notes-obsidi
 
 ## Current focus
 
-**AWS Certified Security — Specialty (SCS-C03)** → start at [`AWS/Security Specialist/README.md`](AWS/Security%20Specialist/README.md), a self-authored master summary keyed to the six SCS-C03 domains.
+**Certified Kubernetes Administrator (CKA)** → start at [`Kubernetes/CKA/README.md`](Kubernetes/CKA/README.md) and follow the study plan in [`Kubernetes/CKA/cka-study-plan.md`](Kubernetes/CKA/cka-study-plan.md). This is your current focus while maintaining existing AWS certification notes for reference.
 
 ---
 
@@ -19,7 +19,9 @@ notes/
 ├── AWS/
 │   ├── Cloud Practitioner Essentials/   # CLF foundations (M1–M13)
 │   ├── DevOps Engineer Professional/    # DOP-C02 prep, organized by exam domain
-│   └── Security Specialist/             # SCS-C03 prep — current focus
+│   └── Security Specialist/             # SCS-C03 prep
+├── Kubernetes/                         # Kubernetes certification notes
+│   └── CKA/                            # Certified Kubernetes Administrator prep
 ├── AWS Test projects/                   # hands-on code experiments
 └── README.md
 ```
@@ -40,7 +42,7 @@ DOP-C02 notes broken out by exam domain. See [`README.md`](AWS/DevOps%20Engineer
 - `cheatsheets/` — quick-reference tables (CLI commands, limits, comparisons, exam tips)
 - `code examples/` — working CloudFormation templates and SAM apps
 
-### [`AWS/Security Specialist/`](AWS/Security%20Specialist/) *(current focus)*
+### [`AWS/Security Specialist/`](AWS/Security%20Specialist/)
 SCS-C03 study material:
 
 - [`README.md`](AWS/Security%20Specialist/README.md) — master summary, six-domain breakdown, cheat sheets
@@ -52,6 +54,15 @@ SCS-C03 study material:
 - `Cheetsheet.md` — long-form cheatsheet by chapter
 - `General Exam Tips.md` — test-taking heuristics
 - `NETWORKS GLOSSARY.md` — networking terms
+
+### [`Kubernetes/CKA/`](Kubernetes/CKA/)
+CKA prep notes focused on the Kubernetes exam domains, labs, troubleshooting scenarios, cluster setup, networking, storage, RBAC, and exam simulation.
+
+- `README.md` — course section map and note index
+- `cka-study-plan.md` — structured exam preparation plan
+- `docs/` — lesson notes and practice lab writeups
+- `kubeadm-clusters/` — kubeadm lab configs for local and cloud playgrounds
+- `managed-clusters/` — optional managed cluster walkthroughs
 
 ### [`AWS Test projects/`](AWS%20Test%20projects/)
 Hands-on code experiments referenced from the notes.

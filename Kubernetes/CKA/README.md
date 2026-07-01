@@ -186,7 +186,7 @@ These are notes from the [Certified Kubernetes Administrator Course](https://kod
   - [23-Ingress-Annotations-and-rewrite-target](docs/09-Networking/23-Ingress-Annotations-and-rewrite-target.md)
   - [24-Practice-Test-CKA-Ingress-Net-1](docs/09-Networking/24-Practice-Test-CKA-Ingress-Net-1.md)
   - [25-Practice-Test-CKA-Ingress-Net-2](docs/09-Networking/25-Practice-Test-CKA-Ingress-Net-2.md)
-  - [26-Dowload-Presentation-Deck](docs/09-Networking/26-Dowload-Presentation-Deck.md)
+  - [26-Download-Presentation-Deck](docs/09-Networking/26-Download-Presentation-Deck.md)
 
 
 - [10-Design-and-Install-Kubernetes-Cluster](docs/10-Design-and-Install-Kubernetes-Cluster)
@@ -211,7 +211,7 @@ These are notes from the [Certified Kubernetes Administrator Course](https://kod
 
 - [12-Troubleshooting](docs/12-Troubleshooting)
 
-  - [01-Troubelshooting-Section-Introduction](docs/12-Troubleshooting/01-Troubelshooting-Section-Introduction.md)
+  - [01-Troubleshooting-Section-Introduction](docs/12-Troubleshooting/01-Troubleshooting-Section-Introduction.md)
   - [02-Application-Failure](docs/12-Troubleshooting/02-Application-Failure.md)
   - [03-Solution-Application-Failure](docs/12-Troubleshooting/03-Solution-Application-Failure.md)
   - [04-Control-Plane-Failure](docs/12-Troubleshooting/04-Control-Plane-Failure.md)
